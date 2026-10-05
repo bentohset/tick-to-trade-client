@@ -8,6 +8,9 @@ GLIMPSE) run on top of it. It is the TCP counterpart of MoldUDP64.
 - Code: `src/gateway/ouch/soupbintcp_session.*`, over `src/net/tcp_client.*`
 - Server side for tests: `apps/mock_exchange`
 
+GLIMPSE: snapshot service for ITCH feeds. Gives the client the full current state of the book at a single point in time, so it can
+start processing the live feed from middle of the day instead of from the first message.
+
 ## Key property: only one direction is sequenced
 
 | Direction       | Packet type          | Sequenced? | Recovered on reconnect? |
@@ -45,12 +48,13 @@ binary integers.
 |------|-------|--------------------------|
 | `+`  | Debug | Free text. Ignore it      |
 
+
 ### Server → client
 
 | Type | Name              | Payload                                                         |
 |------|-------------------|-----------------------------------------------------------------|
-| `A`  | Login Accepted    | Session (10, alpha, left-padded) + Sequence Number (20, numeric ASCII, left-padded) |
-| `J`  | Login Rejected    | Reject Reason Code (1): `A` = not authorized, `S` = requested session not available |
+| `A`  | Login Accepted    | Session (10, alpha, left-padded) + Seq Num (20, numeric ASCII, left-padded) |
+| `J`  | Login Rejected    | Reject Reason Code (1): `A` = not authorized, `S` = requested sesh not available |
 | `S`  | Sequenced Data    | One application message (e.g. an OUCH outbound message)         |
 | `U`  | Unsequenced Data  | One application message, not sequenced                          |
 | `H`  | Server Heartbeat  | (empty)                                                         |
@@ -75,7 +79,7 @@ sequenced message the server will send.
 | 0       | 6   | Username                  | Alpha, right-padded with spaces             |
 | 6       | 10  | Password                  | Alpha, right-padded with spaces             |
 | 16      | 10  | Requested Session         | Left-padded. All spaces = current session   |
-| 26      | 20  | Requested Sequence Number | Numeric ASCII, left-padded. `0` = start from the most recent / only new messages; `n` = replay from message `n` |
+| 26      | 20  | Requested Sequence Number | Numeric ASCII, left-padded. `0` = start from the most recent; `n` = replay from msg `n` |
 
 \* Offsets are relative to the start of the payload, after the 3-byte header.
 
@@ -99,7 +103,7 @@ client                                 server
   1 second**.
 - If **15 seconds** pass with nothing received, treat the link as dead and
   disconnect.
-- Run the heartbeat timer off the same loop that polls the socket, so a stuck
+- Run the heartbeat timer in the same loop that polls the socket, so a stuck
   hot path shows up as missed heartbeats.
 
 ## Reconnect / recovery
@@ -122,4 +126,5 @@ client                                 server
   `tests/integration/gateway_session_test.cpp` checks that disconnecting and
   reconnecting mid-session yields every missed execution exactly once.
 - Use `TCP_NODELAY` (`src/net/socket_opts.hpp`). Orders are small and must not
-  wait on Nagle's algorithm.
+  wait due to batching small packets (Nagle's algo).
+

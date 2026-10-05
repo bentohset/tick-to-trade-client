@@ -49,9 +49,9 @@ packet will arrive to reveal it.
 
 ### Re-request packet (unicast UDP, client → re-request server)
 
-| Offset | Len | Field                   |
-|-------:|----:|-------------------------|
-| 0      | 10  | Session                 |
+| Offset | Len | Field                   | |
+|-------:|----:|-------------------------|-|
+| 0      | 10  | Session                 | |
 | 10     | 8   | Sequence Number         | First sequence number wanted |
 | 18     | 2   | Requested Message Count | How many messages            |
 
@@ -80,12 +80,11 @@ on packet(seq, count):
 
 Main cases:
 
-- **Duplicate / old packet** (`seq + count <= expected`): drop it. This
-  happens normally when A/B feeds are arbitrated or a retransmission arrives late.
+- **Duplicate / old packet** (`seq + count <= expected`): drop the packet. This
+  happens when A/B feeds are arbitrated or a retransmission arrives late.
 - **Partial overlap** (`seq < expected < seq + count`): skip the first
   `expected - seq` blocks and deliver the rest.
-- **Gap** (`seq > expected`): ITCH must be applied **strictly in order**,
-  because the book is a function of the whole history. Options:
+- **Gap** (`seq > expected`): ITCH must be applied **strictly in order**. Options:
   1. Buffer packets that arrive after the gap, re-request the missing range,
      then drain the buffer once it is filled. This is the normal path.
   2. If the gap is too large or re-requests time out, fall back to a snapshot
@@ -109,3 +108,4 @@ Main cases:
 - On-disk Nasdaq ITCH samples use a 2-byte length prefix for each message.
   That prefix is the same as the MoldUDP64 message-block framing, so a replayer
   can copy blocks straight from the file into packets.
+

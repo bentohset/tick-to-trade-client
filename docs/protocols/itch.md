@@ -27,7 +27,7 @@ them to floating point.
 
 ## File framing
 
-In the historical files, each message is preceded by a **2-byte big-endian
+In the historical files, each message is starts with a **2-byte big-endian
 length**. The length does not include itself. This is the same framing as a
 MoldUDP64 message block. Memory-map the file and walk `[len][msg][len][msg]...`.
 
@@ -171,6 +171,7 @@ Consequences for the data structures:
 | `E`  | End of System Hours      |
 | `C`  | End of Messages          |
 
+
 ## Trading Action (`H`)
 
 Stock (11, 8), Trading State (19, 1): `H` halted, `P` paused, `Q` quotation
@@ -196,6 +197,7 @@ layers should not send orders for a symbol that is not in state `T`.
 | 34  | 4   | ETP Leverage Factor          |
 | 38  | 1   | Inverse Indicator            |
 
+
 ## Validation strategy
 
 - `book_dump` and the golden snapshots in `tests/data/` should match the
@@ -207,3 +209,4 @@ layers should not send orders for a symbol that is not in state `T`.
   layout in `messages.hpp`. Read fields through `endian.hpp` helpers using
   `memcpy` and byteswap, never through reinterpret_cast of packed structs.
   Messages are not aligned.
+

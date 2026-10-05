@@ -27,6 +27,7 @@ is at the end.
 | Timestamp | 8-byte integer, nanoseconds since midnight                       |
 | Alpha     | ASCII, space-padded (Stock: 8, Order Token: 14, Firm: 4)         |
 
+
 ## Order Token
 
 Each order is identified by a client-chosen **14-byte Order Token**:
@@ -131,8 +132,6 @@ Common **reject reasons**: `T` test mode, `H` halted, `Z` shares exceed safety
 threshold, `S` invalid stock, `D` invalid display type, `C` exchange closed,
 `L` firm not authorized, `O` other.
 
-Check the spec for the full lists before relying on any single code.
-
 ## Order state machine (`gateway/common/order_state.*`)
 
 | From              | Event                        | To                         |
@@ -172,7 +171,7 @@ has been sent and before `C`.
 
 ## OUCH 5.0 differences (summary)
 
-OUCH 5.0 is the current Nasdaq version. It is worth supporting once 4.2 works.
+OUCH 5.0 is the current Nasdaq version.
 
 - The 14-byte Order Token is replaced by a 4-byte binary **UserRefNum**, which
   must be **strictly increasing** per account per day. A separate optional
@@ -183,3 +182,4 @@ OUCH 5.0 is the current Nasdaq version. It is worth supporting once 4.2 works.
   so messages are no longer fixed size.
 - Messages are renamed slightly, but the overall flow (Enter → Accepted →
   Executed / Canceled) is the same, so `order_state` can be shared.
+
