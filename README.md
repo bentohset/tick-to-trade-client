@@ -13,6 +13,14 @@ over interchangeable OUCH and FIX gateways.
 - **Test harness:** replays real Nasdaq ITCH data and includes a mock exchange
   supporting both protocols.
 
+## Build
+
+```
+cmake --build build
+
+./build/book_dump data/itch/12302019.NASDAQ_ITCH50
+```
+
 ## Directory
 
 ```
@@ -46,6 +54,7 @@ tick-to-trade-client/
 │   │   ├── itch/
 │   │   │   ├── messages.hpp         # ITCH 5.0 layouts and field offsets
 │   │   │   ├── parser.hpp           # zero-copy decode, dispatch on msg type
+│   │   │   ├── framing.hpp          # byte buffer
 │   │   │   └── symbol_directory.hpp # stock locate code -> symbol
 │   │   ├── book/
 │   │   │   ├── order_book.hpp/.cpp  # per-symbol book, O(1) cancel by order id
@@ -111,44 +120,44 @@ tick-to-trade-client/
 
 ## TODO Steps
 
-1. Study
+1. [x] Study
 
 ITCH, MoldUDP64, SoupBinTCP, OUCH, FIX. Download sample ITCH files.
 
-2. ITCH offline parser
+2. [x] ITCH offline parser
 
 Reads a sample file from disk (memory-mapped) without networking. Helpers for big-endian, message layouts.
 
-3. Order book
+3. [ ] Order book
 
 The client maintains its own read-only order book to match with the exchange's order book.
 First implement without optimizations and ensure it can sync. After that, optimize with intrusive lists (for cancel), object pools and others.
 
-4. Live feed
+4. [ ] Live feed
 
 Wrap ITCH in MoldUDP64 packets to send the file over UDP multicast. Then the multicast receiver and sequence tracking.
 Also add packet-drop option to implement gap detection and recovery. 
 
-5. Core infra
+5. [ ] Core infra
 
 Build SPSC queue for multithreading, async logger, rdtsc clock and CPU pinning.
 
-6. OUCH gateway
+6. [ ] OUCH gateway
 
 Starting with the common adapter gateway. Then the OUCH protocol with SoupBinTCP session with a minimal mock_exchange to accept requests.
 Build the order state machine that tracks each order from pending to live to filled or cancelled. 
 Should be able to: kill connection in the middle of a session, reconnect and receive every missed execution once with correct order states.
 
-7. E2E
+7. [ ] E2E
 
 Add strategy interface, toy market-making strategy, pre-trade risk checks, position keeper, and kill switch. Can be trivial strategy.
 Should be able to: one command runs the system, positions reconcile against mock exchange records, kill switch stops trading immediately.
 
-8. Bench
+8. [ ] Bench
 
 Timestamp each packet when it arrives and each order when it leaves. Produce tick-to-trade latency histograms. Good experiments to include are the multi-threaded design versus single-threaded, busy polling versus blocking reads, and virtual dispatch versus templates.
 
-9. Add FIX
+9. [ ] Add FIX
 
 Add FIX codec and test it against both gateways. Benchmark
 

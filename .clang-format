@@ -1,0 +1,35 @@
+BasedOnStyle: Google
+Language: Cpp
+Standard: Latest
+
+ColumnLimit: 100
+IndentWidth: 2
+AccessModifierOffset: -2          # public: / private: at column 0
+PointerAlignment: Left            # const std::byte* p
+DerivePointerAlignment: false
+
+# Keep one-line accessors, guards and case labels as written
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortBlocksOnASingleLine: Empty
+
+# Namespaces: no indentation, "} // namespace x" with one space
+NamespaceIndentation: None
+FixNamespaceComments: true
+SpacesBeforeTrailingComments: 1
+
+# template <...> on its own line only when the declaration doesn't fit on one
+BreakTemplateDeclarations: MultiLine
+
+# Includes: sort within each blank-line-separated group, never move groups.
+# Within a group: project "..." first, then <c++>, then <posix.h>.
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex: '^"'
+    Priority: 1
+  - Regex: '^<[a-z_/]+\.h>'
+    Priority: 3
+  - Regex: '^<'
+    Priority: 2
