@@ -2,7 +2,11 @@
 
 #include "core/endian.hpp"
 
+#include <algorithm>
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <string_view>
 
 namespace ttt::itch {
@@ -63,23 +67,82 @@ struct AddOrder : Header {
 struct AddOrderMpid : AddOrder {
   static constexpr char kType = 'F';
   static constexpr std::size_t kSize = 40;
-  std::array<char, 4> attribution() const;
+  std::array<char, 4> attribution() const { // MPID of the market participant
+    std::array<char, 4> a;
+    std::memcpy(a.data(), p + 36, 4);
+    return a;
+  }
 };
 
-// TODO: fill the rest of the structs
-struct OrderExecuted : Header { /* 'E', 31: order_ref, executed_shares, match_number */
+// 'E'
+struct OrderExecuted : Header {
+  static constexpr char kType = 'E';
+  static constexpr std::size_t kSize = 31;
+  uint64_t order_ref() const { return be::load<uint64_t>(p + 11); }
+  uint32_t executed_shares() const { return be::load<uint32_t>(p + 19); }
+  uint64_t match_number() const { return be::load<uint64_t>(p + 23); }
 };
-struct OrderExecutedWithPrice : Header { /* 'C', 36: + printable, execution_price */
+
+// 'C': executed at a price different from the order's resting price.
+// The book still reduces the order at its own (resting) price.
+struct OrderExecutedWithPrice : Header {
+  static constexpr char kType = 'C';
+  static constexpr std::size_t kSize = 36;
+  uint64_t order_ref() const { return be::load<uint64_t>(p + 11); }
+  uint32_t executed_shares() const { return be::load<uint32_t>(p + 19); }
+  uint64_t match_number() const { return be::load<uint64_t>(p + 23); }
+  bool printable() const { return static_cast<char>(p[31]) == 'Y'; }
+  Price4 execution_price() const { return be::load<uint32_t>(p + 32); }
 };
-struct OrderCancel : Header { /* 'X', 23 */
+
+// 'X'
+struct OrderCancel : Header {
+  static constexpr char kType = 'X';
+  static constexpr std::size_t kSize = 23;
+  uint64_t order_ref() const { return be::load<uint64_t>(p + 11); }
+  uint32_t cancelled_shares() const { return be::load<uint32_t>(p + 19); }
 };
-struct OrderDelete : Header { /* 'D', 19 */
+
+// 'D'
+struct OrderDelete : Header {
+  static constexpr char kType = 'D';
+  static constexpr std::size_t kSize = 19;
+  uint64_t order_ref() const { return be::load<uint64_t>(p + 11); }
 };
-struct OrderReplace : Header { /* 'U', 35: orig_ref, new_ref, shares, price */
+
+// 'U'
+struct OrderReplace : Header {
+  static constexpr char kType = 'U';
+  static constexpr std::size_t kSize = 35;
+  uint64_t original_order_ref() const { return be::load<uint64_t>(p + 11); }
+  uint64_t new_order_ref() const { return be::load<uint64_t>(p + 19); }
+  uint32_t shares() const { return be::load<uint32_t>(p + 27); }
+  Price4 price() const { return be::load<uint32_t>(p + 31); }
 };
-struct Trade : Header { /* 'P', 44 */
+
+// 'P': execution against a non-displayed order. Never changes the visible book.
+struct Trade : Header {
+  static constexpr char kType = 'P';
+  static constexpr std::size_t kSize = 44;
+  uint64_t order_ref() const { return be::load<uint64_t>(p + 11); } // Nasdaq sends 0
+  char side() const { return static_cast<char>(p[19]); }            // Nasdaq always sends 'B'
+  uint32_t shares() const { return be::load<uint32_t>(p + 20); }
+  Symbol stock() const {
+    Symbol s;
+    std::memcpy(s.raw.data(), p + 24, 8);
+    return s;
+  }
+  Price4 price() const { return be::load<uint32_t>(p + 32); }
+  uint64_t match_number() const { return be::load<uint64_t>(p + 36); }
 };
-struct SystemEvent : Header { /* 'S', 12: event_code */
+
+// 'S'
+struct SystemEvent : Header {
+  static constexpr char kType = 'S';
+  static constexpr std::size_t kSize = 12;
+  // 'O' start of messages, 'S' start of system hours, 'Q' start of market hours,
+  // 'M' end of market hours, 'E' end of system hours, 'C' end of messages
+  char event_code() const { return static_cast<char>(p[11]); }
 };
 
 // 'R'
@@ -101,7 +164,23 @@ struct StockDirectory : Header {
   char authenticity() const { return static_cast<char>(p[29]); } // 'P' live, 'T' test symbol
 };
 
-struct StockTradingAction : Header { /* 'H', 25: stock, trading_state */
+// 'H'
+struct StockTradingAction : Header {
+  static constexpr char kType = 'H';
+  static constexpr std::size_t kSize = 25;
+  Symbol stock() const {
+    Symbol s;
+    std::memcpy(s.raw.data(), p + 11, 8);
+    return s;
+  }
+  // 'T' trading, 'H' halted, 'P' paused, 'Q' quotation only
+  char trading_state() const { return static_cast<char>(p[19]); }
+  // offset 20 is reserved
+  std::array<char, 4> reason() const { // e.g. "T1  " news pending; all spaces if none
+    std::array<char, 4> r;
+    std::memcpy(r.data(), p + 21, 4);
+    return r;
+  }
 };
 
 // Expected size per type byte. 0 = unknown type.
@@ -132,5 +211,21 @@ inline constexpr auto kSizeByType = [] {
   t['O'] = 48;
   return t;
 }();
+
+// Every view's kSize must agree with the table the parser checks lengths against
+template <class Msg>
+constexpr bool kSizeMatches = Msg::kSize == kSizeByType[static_cast<unsigned char>(Msg::kType)];
+
+static_assert(kSizeMatches<AddOrder>);
+static_assert(kSizeMatches<AddOrderMpid>);
+static_assert(kSizeMatches<OrderExecuted>);
+static_assert(kSizeMatches<OrderExecutedWithPrice>);
+static_assert(kSizeMatches<OrderCancel>);
+static_assert(kSizeMatches<OrderDelete>);
+static_assert(kSizeMatches<OrderReplace>);
+static_assert(kSizeMatches<Trade>);
+static_assert(kSizeMatches<SystemEvent>);
+static_assert(kSizeMatches<StockDirectory>);
+static_assert(kSizeMatches<StockTradingAction>);
 
 } // namespace ttt::itch
