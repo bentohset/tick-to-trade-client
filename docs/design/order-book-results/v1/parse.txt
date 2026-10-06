@@ -1,0 +1,19 @@
+------------------------------------------------------------------------------
+Benchmark                    Time             CPU   Iterations UserCounters...
+------------------------------------------------------------------------------
+frame_only_mean            695 ms          694 ms            5 bytes_per_second=11.0669Gi/s items_per_second=387.023M/s per_msg=2.58401ns
+frame_only_median          691 ms          691 ms            5 bytes_per_second=11.1164Gi/s items_per_second=388.754M/s per_msg=2.57232ns
+frame_only_stddev         6.59 ms         6.53 ms            5 bytes_per_second=105.806Mi/s items_per_second=3.61345M/s per_msg=24.3011ps
+frame_only_cv             0.95 %          0.94 %             5 bytes_per_second=0.93% items_per_second=0.93% per_msg=0.94%
+parse_null_mean            742 ms          742 ms            5 bytes_per_second=10.3563Gi/s items_per_second=362.174M/s per_msg=2.76112ns
+parse_null_median          741 ms          741 ms            5 bytes_per_second=10.3687Gi/s items_per_second=362.609M/s per_msg=2.75779ns
+parse_null_stddev         2.11 ms         2.14 ms            5 bytes_per_second=30.5539Mi/s items_per_second=1.04347M/s per_msg=7.96023ps
+parse_null_cv             0.28 %          0.29 %             5 bytes_per_second=0.29% items_per_second=0.29% per_msg=0.29%
+parse_header_mean          754 ms          753 ms            5 bytes_per_second=10.2005Gi/s items_per_second=356.726M/s per_msg=2.80342ns
+parse_header_median        751 ms          751 ms            5 bytes_per_second=10.2322Gi/s items_per_second=357.832M/s per_msg=2.79461ns
+parse_header_stddev       6.28 ms         6.22 ms            5 bytes_per_second=86.1213Mi/s items_per_second=2.94118M/s per_msg=23.1626ps
+parse_header_cv           0.83 %          0.83 %             5 bytes_per_second=0.82% items_per_second=0.82% per_msg=0.83%
+parse_book_mean           2143 ms         2143 ms            5 bytes_per_second=3.58575Gi/s items_per_second=125.398M/s per_msg=7.97462ns
+parse_book_median         2142 ms         2142 ms            5 bytes_per_second=3.58738Gi/s items_per_second=125.455M/s per_msg=7.97097ns
+parse_book_stddev         4.24 ms         4.22 ms            5 bytes_per_second=7.23301Mi/s items_per_second=247.019k/s per_msg=15.7129ps
+parse_book_cv             0.20 %          0.20 %             5 bytes_per_second=0.20% items_per_second=0.20% per_msg=0.20%

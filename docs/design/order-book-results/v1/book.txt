@@ -1,0 +1,7 @@
+--------------------------------------------------------------------------------
+Benchmark                      Time             CPU   Iterations UserCounters...
+--------------------------------------------------------------------------------
+replay_book_v1_mean        74229 ms        74215 ms            5 book_errors=0 bytes_per_second=106.951Mi/s items_per_second=3.65256M/s per_msg=276.153ns
+replay_book_v1_median      70750 ms        70743 ms            5 book_errors=0 bytes_per_second=111.237Mi/s items_per_second=3.79892M/s per_msg=263.233ns
+replay_book_v1_stddev       8034 ms         8023 ms            5 book_errors=0 bytes_per_second=10.6531Mi/s items_per_second=363.82k/s per_msg=29.8526ns
+replay_book_v1_cv          10.82 %         10.81 %             5 book_errors=0.00% bytes_per_second=9.96% items_per_second=9.96% per_msg=10.81%

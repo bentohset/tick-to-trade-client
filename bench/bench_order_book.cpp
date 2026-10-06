@@ -4,12 +4,16 @@
 //   bench_order_book <itch-file> [--benchmark_* flags]
 //   e.g. build-release/bench/bench_order_book data/itch/12302019.NASDAQ_ITCH50
 //          --benchmark_repetitions=5 --benchmark_display_aggregates_only=true
-//          --benchmark_out=docs/design/results/v1/v1-gha-x86-bench.json --benchmark_out_format=json
+//          --benchmark_out=docs/design/order-book-results/v1/v1-gha-x86-bench.json --benchmark_out_format=json
 //
 // One iteration = one pass over the whole file through a fresh BookManager.
 // Construction and destruction of the BookManager aren't timed. The per_msg
 // counter includes parsing (~2-5 ns/msg, see bench_itch_parse); the rest is the book.
 // The book_errors counter must be 0: otherwise the replay itself is wrong.
+//
+// Warm-up: one untimed pass runs before the first repetition. Without it the
+// first repetition was consistently ~20% slower than the rest (one-time costs
+// such as growing the heap), which skewed the median of a few repetitions.
 
 #include "core/mapped_file.hpp"
 #include "feed/book/book_manager.hpp"
@@ -86,7 +90,15 @@ int main(int argc, char** argv) {
     g_data = file.bytes();
     prefault(g_data);
 
-    benchmark::RegisterBenchmark("replay_book_v1", replay_book)->Unit(benchmark::kMillisecond);
+    // One pass takes over a minute, so these mean "one iteration" each:
+    //  - MinWarmUpTime: a single untimed warm-up pass, once, before the first
+    //    repetition. Google Benchmark only honours a per-benchmark warm-up time
+    //    when MinTime is also set on the benchmark.
+    //  - MinTime: one timed pass per repetition.
+    benchmark::RegisterBenchmark("replay_book_v1", replay_book)
+        ->Unit(benchmark::kMillisecond)
+        ->MinTime(1.0)
+        ->MinWarmUpTime(1.0);
     benchmark::RunSpecifiedBenchmarks();
     benchmark::Shutdown();
   } catch (const std::exception& e) {

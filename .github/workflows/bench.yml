@@ -2,7 +2,7 @@ name: Bench
 
 # Run manually: Actions tab -> Bench -> Run workflow.
 # Results (JSON + machine info) are uploaded as the "bench-results-<label>" artifact
-# and summarized on the run page. Copy them into docs/design/results/<label>/ to keep them.
+# and summarized on the run page. Copy them into docs/design/order-book-results/<label>/ to keep them.
 
 on:
   workflow_dispatch:

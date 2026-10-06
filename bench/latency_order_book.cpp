@@ -3,7 +3,7 @@
 // Usage:
 //   latency_order_book <itch-file> [--label NAME] [--max-messages N] > result.json
 //   e.g. build-release/bench/latency_order_book data/itch/12302019.NASDAQ_ITCH50
-//          --label v1-gha-x86 > docs/design/results/v1/v1-gha-x86-latency.json
+//          --label v1-gha-x86 > docs/design/order-book-results/v1/v1-gha-x86-latency.json
 //
 // For each message: read_ticks(); parse + apply to BookManager; read_ticks().
 // The difference goes into a histogram per message type. Output (stdout) is JSON

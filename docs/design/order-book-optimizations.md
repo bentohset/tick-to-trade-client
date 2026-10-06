@@ -202,7 +202,7 @@ iteration. Reports ns/msg and messages/s.
 ```bash
 build-release/bench/bench_order_book FILE --benchmark_repetitions=5 \
     --benchmark_display_aggregates_only=true \
-    --benchmark_out=docs/design/results/<impl>/<impl>-<machine>-bench.json --benchmark_out_format=json
+    --benchmark_out=docs/design/order-book-results/<impl>/<impl>-<machine>-bench.json --benchmark_out_format=json
 ```
 
 ### Latency distribution: `bench/latency_order_book`
@@ -213,7 +213,7 @@ p90, p99, p99.9, max and the timer overhead as JSON:
 
 ```bash
 build-release/bench/latency_order_book FILE --label <impl>-<machine> \
-    > docs/design/results/<impl>/<impl>-<machine>-latency.json
+    > docs/design/order-book-results/<impl>/<impl>-<machine>-latency.json
 ```
 
 Timer: `rdtsc` on the x86-64 runners, roughly 20–40 cycles (~7–15 ns) per
@@ -249,7 +249,7 @@ so to keep runs comparable:
 
 ## Results
 
-Each version has a folder, [`docs/design/results/<impl>/`](results/), holding
+Each version has a folder, [`docs/design/order-book-results/<impl>/`](results/), holding
 the `bench-results-<impl>` artifact of its Bench run:
 
 | File | Contents |
@@ -265,58 +265,72 @@ message apply.
 
 ### Throughput (full day, ns/msg, gha-x86)
 
-| Step | ns/msg | Notes |
+| Step | ns/msg (median) | Notes |
 |---|---|---|
-| Parse only (`bench_itch_parse`, `parse_book`) | 8.0 | Floor: no book work. cv 0.07% |
-| v1 | **325.4** | 87.5 s/day, 3.07 M msgs/s. 3 reps, cv 12.1%: roughly 277 / 325 / 353 ns/msg ([v1/](results/v1/)) |
+| Parse only (`bench_itch_parse`, `parse_book`) | 7.97 | Floor: no book work. 5 reps, cv 0.2% |
+| v1 | **263.2** | 70.8 s/day, 3.80 M msgs/s. 5 reps: 325.3 / 281.5 / 263.2 / 248.5 / 262.2, cv 10.8% ([v1/](order-book-results/v1/)) |
 | v2 + O1 pool | – | |
 | v2 + O2 hash map | – | |
 | v2 + O3 FIFO | – | Expected to cost a little |
 | v2 + O4 vector levels | – | |
 | v2 final | – | |
 
-v1 run: AMD EPYC 7763 (Zen 3), 2 cores / 4 threads, 15 GB, GCC 13.3. The v1
-per-repetition times were reconstructed from mean, median and stddev (that run
-only saved aggregates); later runs keep every repetition.
+v1 run: AMD EPYC 7763 (Zen 3), 2 cores / 4 threads, 15 GB, GCC 13.3.
+
+**The first repetition was consistently the slowest** (325 ns/msg, vs 248–282
+for the other four); an earlier v1 run with 3 repetitions had a median of
+325 ns/msg. Each repetition builds a fresh `BookManager`, so the likely cause is
+one-time costs that later passes don't pay, such as the heap growing and
+faulting in fresh pages that glibc then keeps and reuses (not confirmed).
+
+`bench_order_book` now runs **one untimed warm-up pass** before the first
+repetition (`MinWarmUpTime` + `MinTime` on the benchmark; Google Benchmark
+reports it as `replay_book_v1/min_time:1.000/min_warmup_time:1.000`). The v1
+numbers above predate the warm-up; rerun v1 so v1 and v2 are measured the same
+way. Compare on the **median and the minimum** (248.5 ns/msg for v1 so far).
 
 ### Latency (ns per message apply, gha-x86)
 
 Parse + apply of one message, timed with `rdtsc` (0.41 ns/tick). An empty timer
 pair costs 25 ns mean / 30 ns p50 and is included in every value; readings
-move in ~10 ns steps on these VMs.
+move in ~10 ns steps on these VMs. The latency tool makes a single pass.
 
 | Impl | Type | count | mean | p50 | p90 | p99 | p99.9 | max |
 |---|---|---|---|---|---|---|---|---|
-| v1 | **book (A F E C X D U)** | 263.2 M | 382 | **310** | 741 | **1,483** | 2,094 | 1.83 ms |
-| v1 | A add | 117.1 M | 297 | 240 | 561 | 972 | 1,593 | 1.83 ms |
-| v1 | D delete | 114.4 M | 413 | 351 | 791 | 1,453 | 1,994 | 107 µs |
-| v1 | U replace | 21.6 M | 686 | 561 | 1,352 | 1,933 | 3,246 | 71 µs |
-| v1 | E execute | 5.7 M | 443 | 391 | 852 | 1,553 | 2,094 | 45 µs |
-| v1 | X cancel | 2.8 M | 253 | 200 | 461 | 1,012 | 1,583 | 53 µs |
-| v1 | F add (MPID) | 1.5 M | 318 | 220 | 621 | 1,252 | 2,735 | 681 µs |
-| v1 | C execute w/ price | 0.1 M | 287 | 171 | 561 | 1,353 | 1,913 | 18 µs |
+| v1 | **book (A F E C X D U)** | 263.2 M | 396 | **321** | 772 | **1,493** | 2,054 | 1.84 ms |
+| v1 | A add | 117.1 M | 303 | 251 | 561 | 992 | 1,553 | 1.84 ms |
+| v1 | D delete | 114.4 M | 436 | 381 | 832 | 1,463 | 1,954 | 269 µs |
+| v1 | U replace | 21.6 M | 699 | 581 | 1,363 | 1,904 | 3,046 | 209 µs |
+| v1 | E execute | 5.7 M | 462 | 411 | 902 | 1,563 | 2,044 | 213 µs |
+| v1 | X cancel | 2.8 M | 265 | 211 | 481 | 1,062 | 1,573 | 73 µs |
+| v1 | F add (MPID) | 1.5 M | 306 | 210 | 591 | 1,233 | 2,715 | 722 µs |
+| v1 | C execute w/ price | 0.1 M | 306 | 180 | 611 | 1,383 | 1,893 | 66 µs |
 | v2 | book (A F E C X D U) | – | – | – | – | – | – | – |
 
-Source: [v1/v1-gha-x86-latency.json](results/v1/v1-gha-x86-latency.json).
+Source: [v1/v1-gha-x86-latency.json](order-book-results/v1/v1-gha-x86-latency.json).
 Replay check: 268,744,780 messages, 0 book errors, 0 live orders at end of day.
+An earlier v1 run gave p50 310 / p99 1,483: within ~3% of these.
 
 ### v1 analysis
 
-- **The book is ~97% of the time**: 325 ns/msg total against an 8 ns parse floor.
-- **Replace is the slowest message** (p50 561 ns): a lookup, a full remove and an add.
-- **Deletes and executes are slower than adds** (p50 351 and 391 vs 240 ns).
+- **The book is ~97% of the time**: 263 ns/msg total against an 8 ns parse floor.
+- **Replace is the slowest message** (p50 581 ns): a lookup, a full remove and an add.
+- **Deletes and executes are slower than adds** (p50 381 and 411 vs 251 ns).
   Removing means finding an order allocated long ago, likely out of cache;
   an add writes into memory the allocator recently freed, still warm. This is
   the cost O2 (flat hash table, one miss per lookup) targets. Not yet
   confirmed with a profiler.
-- **Moderate tail**: p99 ≈ 4.8x p50, p99.9 = 2.1 µs. Only 54 of 263 M
-  messages took over 65 µs; the 1.83 ms max is a single outlier (VM pause or
-  page fault), not the code.
-- **Throughput is noisy run to run** (cv 12% vs < 4% for parsing): v1 is bound
-  by cache misses on ~1.9 M scattered nodes, so it depends on the shared L3
-  and memory bandwidth that neighbouring VMs compete for.
-- The per-message mean (382 ns) is above the throughput number (325 ns): the
-  timer costs ~25 ns and stops consecutive messages overlapping.
+- **Moderate tail**: p99 ≈ 4.7x p50, p99.9 = 2.1 µs. The 1.84 ms max is a
+  single outlier (VM pause or page fault), not the code.
+- **Latency is stable between runs, throughput is not.** Percentiles moved
+  ~3% between two runs, while throughput medians differed by ~20% (325 vs
+  263 ns/msg), mostly through the slow first repetition. v1 is bound by cache
+  misses on ~1.9 M scattered nodes, so it also depends on the shared L3 and
+  memory bandwidth that neighbouring VMs compete for. Parsing (sequential
+  reads) stays within 1%.
+- The per-message mean (396 ns) is above the throughput median (263 ns): the
+  latency tool is a single pass (like repetition 0), the timer costs ~25 ns,
+  and timing every message stops consecutive messages overlapping.
 - **For v2's percentiles**, the ~30 ns timer cost and ~10 ns steps are a large
   share of a ~30–50 ns message; rely on throughput for absolute numbers and on
   latency for the shape of the distribution.
