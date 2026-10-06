@@ -19,7 +19,7 @@ add_library(ttt_feed STATIC
 target_link_libraries(ttt_feed PUBLIC ttt_core)
 
 add_executable(book_dump apps/book_dump/main.cpp)
-target_link_libraries(book_dump PRIVATE ttt_core)
+target_link_libraries(book_dump PRIVATE ttt_feed) # ttt_feed brings ttt_core
 
 # --- tests ----------------------------------------------------------------------------
 
