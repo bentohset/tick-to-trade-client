@@ -29,3 +29,11 @@ include(CTest)
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
+
+# --- benchmarks -----------------------------------------------------------------------
+
+# Only meaningful in Release builds. Configure with -DBUILD_BENCHMARKS=OFF to skip.
+option(BUILD_BENCHMARKS "Build benchmarks" ON)
+if(BUILD_BENCHMARKS)
+  add_subdirectory(bench)
+endif()
