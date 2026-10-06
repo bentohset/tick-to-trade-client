@@ -3,7 +3,7 @@
 // Usage:
 //   bench_itch_parse <itch-file> [--benchmark_* flags]
 //   e.g. build-release/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50
-//          --benchmark_repetitions=5 --benchmark_report_aggregates_only=true
+//          --benchmark_repetitions=5 --benchmark_display_aggregates_only=true
 //
 // Each benchmark walks the whole file once per iteration. They build on each other,
 // so the difference between two rows is the cost of the extra step:

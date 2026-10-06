@@ -2,7 +2,7 @@ name: Bench
 
 # Run manually: Actions tab -> Bench -> Run workflow.
 # Results (JSON + machine info) are uploaded as the "bench-results-<label>" artifact
-# and summarized on the run page. Copy them into docs/design/results/ to keep them.
+# and summarized on the run page. Copy them into docs/design/results/<label>/ to keep them.
 
 on:
   workflow_dispatch:
@@ -18,9 +18,9 @@ on:
         required: true
         default: "0"
       repetitions:
-        description: Google Benchmark repetitions
+        description: Google Benchmark repetitions (every one is kept in the JSON)
         required: true
-        default: "3"
+        default: "5"
 
 concurrency:
   group: bench
@@ -108,11 +108,11 @@ jobs:
           PIN="taskset -c 1"
 
           $PIN build-release/bench/bench_itch_parse "$F" \
-            --benchmark_repetitions=${{ inputs.repetitions }} --benchmark_report_aggregates_only=true \
+            --benchmark_repetitions=${{ inputs.repetitions }} --benchmark_display_aggregates_only=true \
             --benchmark_out="$R/parse-$MACHINE-bench.json" --benchmark_out_format=json | tee "$R/parse.txt"
 
           $PIN build-release/bench/bench_order_book "$F" \
-            --benchmark_repetitions=${{ inputs.repetitions }} --benchmark_report_aggregates_only=true \
+            --benchmark_repetitions=${{ inputs.repetitions }} --benchmark_display_aggregates_only=true \
             --benchmark_out="$R/$L-$MACHINE-bench.json" --benchmark_out_format=json | tee "$R/book.txt"
 
           $PIN build-release/bench/latency_order_book "$F" --label "$L-$MACHINE" \
