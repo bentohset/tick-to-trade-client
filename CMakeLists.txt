@@ -12,5 +12,20 @@ add_library(ttt_core STATIC
 target_include_directories(ttt_core PUBLIC src)
 target_compile_options(ttt_core PUBLIC -Wall -Wextra -Wpedantic)
 
+add_library(ttt_feed STATIC
+  src/feed/book/book_manager.cpp
+  src/feed/book/order_book.cpp
+)
+target_link_libraries(ttt_feed PUBLIC ttt_core)
+
 add_executable(book_dump apps/book_dump/main.cpp)
 target_link_libraries(book_dump PRIVATE ttt_core)
+
+# --- tests ----------------------------------------------------------------------------
+
+# Defines BUILD_TESTING (ON by default) and calls enable_testing(), so ctest run
+# from the build root finds the tests. Configure with -DBUILD_TESTING=OFF to skip.
+include(CTest)
+if(BUILD_TESTING)
+  add_subdirectory(tests)
+endif()

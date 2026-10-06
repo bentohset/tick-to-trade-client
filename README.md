@@ -94,11 +94,6 @@ tick-to-trade-client/
 │
 ├── tests/
 │   ├── unit/
-│   │   ├── itch_parser_test.cpp
-│   │   ├── order_book_test.cpp
-│   │   ├── moldudp64_gap_test.cpp
-│   │   ├── ouch_codec_test.cpp
-│   │   └── risk_test.cpp
 │   ├── integration/
 │   │   ├── feed_end_to_end_test.cpp   # replay file -> compare final book snapshot
 │   │   └── gateway_session_test.cpp   # login, disconnect, replay against mock exchange
@@ -130,8 +125,14 @@ Reads a sample file from disk (memory-mapped) without networking. Helpers for bi
 
 3. [ ] Order book
 
+  a. [x] Naive implementation
+
 The client maintains its own read-only order book to match with the exchange's order book.
-First implement without optimizations and ensure it can sync. After that, optimize with intrusive lists (for cancel), object pools and others.
+First implement without optimizations and ensure it can sync.
+
+  b. [ ] Optimized implementation
+
+After that, optimize with intrusive lists (for cancel), object pools and others.
 
 4. [ ] Live feed
 
