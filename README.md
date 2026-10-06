@@ -50,7 +50,7 @@ Build with `--bench` flag
 ```
 ./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true
 
-./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --bench_mark_out=results.json --benchmark_out_format=json
+./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=results.json --benchmark_out_format=json
 ```
 
 ## Directory
