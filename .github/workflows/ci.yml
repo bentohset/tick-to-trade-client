@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build everything (libraries, apps, tests, benchmarks) and run the unit tests
+  # on x86-64 Linux with both compilers, in Debug and Release.
+  build-test:
+    name: ${{ matrix.compiler }} ${{ matrix.build_type }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+        include:
+          - compiler: gcc
+            cc: gcc
+            cxx: g++
+          - compiler: clang
+            cc: clang
+            cxx: clang++
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Show toolchain
+        run: |
+          uname -m
+          $CXX --version
+          cmake --version
+          ninja --version
+
+      - name: Build
+        run: ./build.sh --test --bench ${{ matrix.build_type == 'Release' && '--release' || '' }}
+
+      - name: Test
+        run: ctest --test-dir ${{ matrix.build_type == 'Release' && 'build-release' || 'build' }} --output-on-failure
+
+  # AddressSanitizer + UndefinedBehaviorSanitizer: memory errors, leaks, UB.
+  sanitizers:
+    name: clang ASan+UBSan
+    runs-on: ubuntu-24.04
+    env:
+      CC: clang
+      CXX: clang++
+      SAN_FLAGS: -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build-san -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_TESTING=ON
+          -DBUILD_BENCHMARKS=OFF
+          "-DCMAKE_CXX_FLAGS=$SAN_FLAGS"
+          "-DCMAKE_EXE_LINKER_FLAGS=$SAN_FLAGS"
+
+      - name: Build
+        run: cmake --build build-san --parallel
+
+      - name: Test
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --test-dir build-san --output-on-failure
