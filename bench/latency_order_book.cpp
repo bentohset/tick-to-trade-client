@@ -2,7 +2,7 @@
 //
 // Usage:
 //   latency_order_book <itch-file> [--label NAME] [--max-messages N] > result.json
-//   e.g. build-release/bench/latency_order_book data/itch/12302019.NASDAQ_ITCH50 \
+//   e.g. build-release/bench/latency_order_book data/itch/12302019.NASDAQ_ITCH50
 //          --label v1-gha-x86 > docs/design/results/v1-gha-x86-latency.json
 //
 // For each message: read_ticks(); parse + apply to BookManager; read_ticks().
@@ -114,7 +114,7 @@ void table_row(std::string_view name, const LatencyHistogram& h) {
                static_cast<unsigned long long>(h.max()));
 }
 
-std::string_view basename(std::string_view path) {
+std::string_view file_name_of(std::string_view path) {
   const auto slash = path.find_last_of('/');
   return slash == std::string_view::npos ? path : path.substr(slash + 1);
 }
@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
     // --- JSON (stdout) ---
     std::printf("{\n");
     std::printf("  \"label\": \"%.*s\",\n", static_cast<int>(args.label.size()), args.label.data());
-    const auto file_name = basename(args.file);
+    const auto file_name = file_name_of(args.file);
     std::printf("  \"file\": \"%.*s\",\n", static_cast<int>(file_name.size()), file_name.data());
     std::printf("  \"machine\": \"%s %s\",\n", host.sysname, host.machine);
     std::printf("  \"messages\": %llu,\n", static_cast<unsigned long long>(messages));

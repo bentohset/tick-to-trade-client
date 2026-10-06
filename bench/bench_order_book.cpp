@@ -2,8 +2,8 @@
 //
 // Usage:
 //   bench_order_book <itch-file> [--benchmark_* flags]
-//   e.g. build-release/bench/bench_order_book data/itch/12302019.NASDAQ_ITCH50 \
-//          --benchmark_repetitions=3 --benchmark_report_aggregates_only=true \
+//   e.g. build-release/bench/bench_order_book data/itch/12302019.NASDAQ_ITCH50
+//          --benchmark_repetitions=3 --benchmark_report_aggregates_only=true
 //          --benchmark_out=docs/design/results/v1-gha-x86-bench.json --benchmark_out_format=json
 //
 // One iteration = one pass over the whole file through a fresh BookManager.
