@@ -16,9 +16,41 @@ over interchangeable OUCH and FIX gateways.
 ## Build
 
 ```
-cmake --build build
+./build.sh --test --bench
+./build.sh --release --bench
+```
 
+book_dump:
+``` bash
+# check file is complete (parser only)
 ./build/book_dump data/itch/12302019.NASDAQ_ITCH50
+# check whole day's book replay (parser + order book)
+./build/book_dump data/itch/12302019.NASDAQ_ITCH50 --check
+# check symbol at a point in time
+./build/book_dump data/itch/12302019.NASDAQ_ITCH50 --symbol AAPL --at 10:30 --depth 5
+```
+
+book_dump useful moments:
+
+```bash
+# just before the opening cross
+book_dump FILE --symbol AAPL --at 09:29:59.999
+# half a second after the open
+book_dump FILE --symbol AAPL --at 09:30:00.5 --depth 3
+# into the close
+book_dump FILE --symbol AAPL --at 15:59:59 --depth 20
+# just after pre-market opens
+book_dump FILE --symbol AAPL --at 04:00:01
+```
+
+## Benchmark
+
+Build with `--bench` flag
+
+```
+./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true
+
+./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --bench_mark_out=results.json --benchmark_out_format=json
 ```
 
 ## Directory
