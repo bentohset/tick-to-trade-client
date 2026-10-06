@@ -5,6 +5,7 @@
 #include <optional>
 #include <string_view>
 #include <system_error>
+
 namespace book_dump {
 
 struct Options {
@@ -45,7 +46,7 @@ inline std::optional<Options> parse_args(int argc, char** argv) {
       const std::string_view v = argv[++i];
       const auto [end, ec] = std::from_chars(v.data(), v.data() + v.size(), o.depth);
       if (ec != std::errc{} || end != v.data() + v.size()) return std::nullopt;
-    } else if (!arg.starts_with("-" && o.file.empty())) {
+    } else if (!arg.starts_with("-") && o.file.empty()) {
       o.file = arg;
     } else {
       return std::nullopt;
