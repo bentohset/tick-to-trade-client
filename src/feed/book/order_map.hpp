@@ -63,7 +63,8 @@ public:
   }
 
 private:
-  // TODO: possibly store the lower 32bits of the ref as a "tag" so cache line can hold 8 slots instead of 4.
+  // TODO: possibly store the lower 32bits of the ref as a "tag" so cache line can hold 8 slots
+  // instead of 4.
   struct Slot {
     OrderRef ref = 0;
     uint32_t index = 0;
