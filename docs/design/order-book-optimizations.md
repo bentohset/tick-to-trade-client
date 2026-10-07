@@ -1,7 +1,7 @@
 # Order book optimizations
 
-Status: **design**. first version (naive, standard containers) is implemented and is the
-reference. This document plans the next version and is where its results get recorded.
+Status: **v2 implemented and measured** (see [Results](#results)). v1 (naive,
+standard containers) is kept on the `feat/orderbook-v1` branch as the reference.
 
 For reference, the first version will be called v1 and the optimized version be v2.
 
@@ -180,15 +180,18 @@ Removes cost 3.
 
 ## Correctness
 
-v1 stays in the codebase as the reference implementation.
+v1 lives on the `feat/orderbook-v1` branch; v2 replaced it in place on `main`
+with the same public interface (`BookManager`, `OrderBook` queries).
 
-1. **Differential replay**: feed every message of the full day to both books.
-   After each message compare best bid/ask of the touched symbol; every
-   1 M messages compare full depth of all symbols; at the end compare error
-   counters and live order counts. The first difference stops the run and
-   prints the message.
-1. **`book_dump --check`** on the full day: all error counters 0, live orders
-   0 at end of day.
+1. **Unit tests**: `book_manager_test` (28 message-level tests written for v1)
+   passes unchanged on v2. New tests cover `OrderBook`, `PriceLevel` (FIFO
+   links), `OrderMap` (including backward-shift deletion against
+   `std::unordered_map`) and `OrderPool`.
+2. **Full-day replay**: 268,744,780 messages, all error counters 0, 0 live
+   orders at end of day: the same result as v1.
+3. **Decomposed replay check**: `latency_order_book_micro --verify` replays the
+   day through the components and through `BookManager` and compares every
+   book's full depth (passes for v2).
 
 ## Measurement
 
@@ -225,14 +228,30 @@ number: reading the timer around every message stops the CPU from overlapping
 consecutive messages. Compare throughput with throughput and percentiles with
 percentiles.
 
+### Component latency: `bench/latency_order_book_micro`
+
+Does `BookManager`'s work itself (same `OrderPool`, `OrderMap`, `OrderBook`s,
+real messages) with a timer around each component call: `map_find`,
+`map_insert`, `map_erase`, `book_add`, `book_reduce`, `book_remove`. The library
+has no timing code. `--verify` replays the same messages through `BookManager`
+and compares every book, so the decomposition can't drift unnoticed.
+
+```bash
+build-release/bench/latency_order_book_micro FILE --label <impl>-<machine> --verify \
+    > docs/design/order-book-results/<impl>/<impl>-<machine>-latency-micro.json
+```
+
+Each value includes one timer pair (~25–30 ns); timed components don't add
+up to the untimed ns/msg.
+
 ### Where it runs: GitHub Actions
 
 All results come from GitHub-hosted runners (`gha-x86`: `ubuntu-24.04`,
 x86-64, 4 vCPU, 16 GB RAM for a public repo).
 
 `.github/workflows/bench.yml` (Actions tab -> **Bench** -> Run workflow) builds
-Release, runs `bench_itch_parse`, `bench_order_book` and `latency_order_book`,
-and uploads the JSON as the `bench-results-<label>` artifact. It uses the
+Release, runs `bench_itch_parse`, `bench_order_book`, `latency_order_book` and
+`latency_order_book_micro --verify`, and uploads the JSON as the `bench-results-<label>` artifact. It uses the
 **whole day** by default; `itch_bytes` can select a slice from the start of the
 day instead. Only compare results that used the same input.
 
@@ -249,88 +268,133 @@ so to keep runs comparable:
 
 ## Results
 
-Each version has a folder, [`docs/design/order-book-results/<impl>/`](results/), holding
-the `bench-results-<impl>` artifact of its Bench run:
+Each version has a folder, [`docs/design/order-book-results/<impl>/`](order-book-results/),
+holding the `bench-results-<impl>` artifact of its Bench run:
 
 | File | Contents |
 |---|---|
 | `<impl>-gha-x86-bench.json` | `bench_order_book` throughput (Google Benchmark JSON) |
 | `<impl>-gha-x86-latency.json` | `latency_order_book` percentiles per message type |
+| `<impl>-gha-x86-latency-micro.json` | `latency_order_book_micro` percentiles per component (v2 onwards) |
 | `parse-gha-x86-bench.json` | `bench_itch_parse` from the same run |
 | `gha-x86-machine.txt` | Runner `lscpu`, memory, compiler, TSC flags |
-| `book.txt`, `latency.txt`, `parse.txt` | Console output |
+| `book.txt`, `latency.txt`, `latency-micro.txt`, `parse.txt` | Console output |
 
-Throughput is the median of the repetitions over the full day. Latency is per
-message apply.
+Both runs: GitHub Actions, AMD EPYC 7763 (Zen 3), 2 cores / 4 threads, 15 GB,
+GCC 13.3, whole 12302019 day (268,744,780 messages). Both replays: 0 book
+errors, 0 live orders at end of day.
+
+### Summary
+
+| | v1 | v2 | Speedup |
+|---|---|---|---|
+| Throughput, median ns/msg | 263.2 | **146.3** | **1.80x** |
+| Throughput, best repetition | 248.5 | **135.7** | 1.83x |
+| Book cost (throughput minus 8.0 ns parse) | ~255 | **~138** | 1.85x |
+| Latency p50 (all book messages) | 321 | **160** | 2.0x |
+| Latency p99 | 1,493 | **611** | 2.4x |
+| Latency p99.9 | 2,054 | **1,012** | 2.0x |
+| Latency max | 1.84 ms | 0.61 ms | 3.0x |
+| Throughput cv | 10.8% | 4.0% | |
 
 ### Throughput (full day, ns/msg, gha-x86)
 
-| Step | ns/msg (median) | Notes |
-|---|---|---|
-| Parse only (`bench_itch_parse`, `parse_book`) | 7.97 | Floor: no book work. 5 reps, cv 0.2% |
-| v1 | **263.2** | 70.8 s/day, 3.80 M msgs/s. 5 reps: 325.3 / 281.5 / 263.2 / 248.5 / 262.2, cv 10.8% ([v1/](order-book-results/v1/)) |
-| v2 + O1 pool | – | |
-| v2 + O2 hash map | – | |
-| v2 + O3 FIFO | – | Expected to cost a little |
-| v2 + O4 vector levels | – | |
-| v2 final | – | |
+| Step | ns/msg (median) | Repetitions | Notes |
+|---|---|---|---|
+| Parse only (`bench_itch_parse`, `parse_book`) | 7.97 | | Floor: no book work. Same in both runs (cv 0.2%) |
+| v1 | 263.2 | 325.3 / 281.5 / 263.2 / 248.5 / 262.2, cv 10.8% | [v1/](order-book-results/v1/). No warm-up pass; median of the 4 warm reps: 262.7 |
+| **v2** (O1–O4 together) | **146.3** | 148.0 / 147.8 / 146.3 / 138.5 / 135.7, cv 4.0% | [v2/](order-book-results/v2/). With warm-up pass |
 
-v1 run: AMD EPYC 7763 (Zen 3), 2 cores / 4 threads, 15 GB, GCC 13.3.
 
-**The first repetition was consistently the slowest** (325 ns/msg, vs 248–282
-for the other four); an earlier v1 run with 3 repetitions had a median of
-325 ns/msg. Each repetition builds a fresh `BookManager`, so the likely cause is
-one-time costs that later passes don't pay, such as the heap growing and
-faulting in fresh pages that glibc then keeps and reuses (not confirmed).
+The v1 run predates the warm-up pass, but its first repetition was the only
+outlier: excluding it gives a 262.7 ns/msg median, so the speedup is the same
+either way. Note: the v2 JSON still names the benchmark `replay_book_v1`
+(rename pending); the folder and file names identify the version.
 
-`bench_order_book` now runs **one untimed warm-up pass** before the first
-repetition (`MinWarmUpTime` + `MinTime` on the benchmark; Google Benchmark
-reports it as `replay_book_v1/min_time:1.000/min_warmup_time:1.000`). The v1
-numbers above predate the warm-up; rerun v1 so v1 and v2 are measured the same
-way. Compare on the **median and the minimum** (248.5 ns/msg for v1 so far).
-
-### Latency (ns per message apply, gha-x86)
+### Latency per message (ns, gha-x86)
 
 Parse + apply of one message, timed with `rdtsc` (0.41 ns/tick). An empty timer
-pair costs 25 ns mean / 30 ns p50 and is included in every value; readings
-move in ~10 ns steps on these VMs. The latency tool makes a single pass.
+pair costs 25 ns mean / 30 ns p50 and is included in every value; readings move
+in ~10 ns steps. Single pass, no warm-up, for both versions.
 
-| Impl | Type | count | mean | p50 | p90 | p99 | p99.9 | max |
-|---|---|---|---|---|---|---|---|---|
-| v1 | **book (A F E C X D U)** | 263.2 M | 396 | **321** | 772 | **1,493** | 2,054 | 1.84 ms |
-| v1 | A add | 117.1 M | 303 | 251 | 561 | 992 | 1,553 | 1.84 ms |
-| v1 | D delete | 114.4 M | 436 | 381 | 832 | 1,463 | 1,954 | 269 µs |
-| v1 | U replace | 21.6 M | 699 | 581 | 1,363 | 1,904 | 3,046 | 209 µs |
-| v1 | E execute | 5.7 M | 462 | 411 | 902 | 1,563 | 2,044 | 213 µs |
-| v1 | X cancel | 2.8 M | 265 | 211 | 481 | 1,062 | 1,573 | 73 µs |
-| v1 | F add (MPID) | 1.5 M | 306 | 210 | 591 | 1,233 | 2,715 | 722 µs |
-| v1 | C execute w/ price | 0.1 M | 306 | 180 | 611 | 1,383 | 1,893 | 66 µs |
-| v2 | book (A F E C X D U) | – | – | – | – | – | – | – |
+| Type | count | v1 p50 | **v2 p50** | v1 p99 | **v2 p99** | v1 p99.9 | **v2 p99.9** | v1 max | v2 max |
+|---|---|---|---|---|---|---|---|---|---|
+| **book (A F E C X D U)** | 263.2 M | 321 | **160** | 1,493 | **611** | 2,054 | **1,012** | 1.84 ms | 610 µs |
+| A add | 117.1 M | 251 | **160** | 992 | **451** | 1,553 | **561** | 1.84 ms | 473 µs |
+| D delete | 114.4 M | 381 | **140** | 1,463 | **571** | 1,954 | **811** | 269 µs | 610 µs |
+| U replace | 21.6 M | 581 | **341** | 1,904 | **972** | 3,046 | **1,643** | 209 µs | 531 µs |
+| E execute | 5.7 M | 411 | **160** | 1,563 | **551** | 2,044 | **771** | 213 µs | 92 µs |
+| X cancel | 2.8 M | 211 | **100** | 1,062 | **431** | 1,573 | **661** | 73 µs | 51 µs |
+| F add (MPID) | 1.5 M | 210 | **170** | 1,233 | **481** | 2,715 | **2,064** | 722 µs | 118 µs |
+| C execute w/ price | 0.1 M | 180 | **110** | 1,383 | **461** | 1,893 | **701** | 66 µs | 16 µs |
 
-Source: [v1/v1-gha-x86-latency.json](order-book-results/v1/v1-gha-x86-latency.json).
-Replay check: 268,744,780 messages, 0 book errors, 0 live orders at end of day.
-An earlier v1 run gave p50 310 / p99 1,483: within ~3% of these.
+Means: v1 396 ns, v2 192 ns (book). Sources:
+[v1](order-book-results/v1/v1-gha-x86-latency.json),
+[v2](order-book-results/v2/v2-gha-x86-latency.json).
+
+### Component latency, v2 (ns, gha-x86)
+
+Each value includes one timer pair (~25–30 ns; the `timer` row).
+`--verify`: OK, all 8,906 books identical to `BookManager`, 0 messages skipped.
+
+| Component | count | mean | p50 | p90 | p99 | p99.9 |
+|---|---|---|---|---|---|---|
+| timer (empty pair) | 10 M | 25 | 30 | 30 | 30 | 30 |
+| `map_find` | 30.2 M | 81 | 50 | 140 | 291 | 471 |
+| `map_insert` | 140.3 M | **143** | **140** | 160 | 411 | 491 |
+| `map_erase` | 140.3 M | 79 | 50 | 150 | 291 | 481 |
+| `book_add` | 140.3 M | 69 | 60 | 100 | 240 | 491 |
+| `book_reduce` | 4.3 M | 60 | 50 | 80 | 230 | 421 |
+| `book_remove` | 140.3 M | 109 | 80 | 191 | 431 | 781 |
+
+Source: [v2-gha-x86-latency-micro.json](order-book-results/v2/v2-gha-x86-latency-micro.json).
 
 ### v1 analysis
 
-- **The book is ~97% of the time**: 263 ns/msg total against an 8 ns parse floor.
-- **Replace is the slowest message** (p50 581 ns): a lookup, a full remove and an add.
-- **Deletes and executes are slower than adds** (p50 381 and 411 vs 251 ns).
-  Removing means finding an order allocated long ago, likely out of cache;
-  an add writes into memory the allocator recently freed, still warm. This is
-  the cost O2 (flat hash table, one miss per lookup) targets. Not yet
-  confirmed with a profiler.
-- **Moderate tail**: p99 ≈ 4.7x p50, p99.9 = 2.1 µs. The 1.84 ms max is a
-  single outlier (VM pause or page fault), not the code.
-- **Latency is stable between runs, throughput is not.** Percentiles moved
-  ~3% between two runs, while throughput medians differed by ~20% (325 vs
-  263 ns/msg), mostly through the slow first repetition. v1 is bound by cache
-  misses on ~1.9 M scattered nodes, so it also depends on the shared L3 and
-  memory bandwidth that neighbouring VMs compete for. Parsing (sequential
-  reads) stays within 1%.
-- The per-message mean (396 ns) is above the throughput median (263 ns): the
-  latency tool is a single pass (like repetition 0), the timer costs ~25 ns,
-  and timing every message stops consecutive messages overlapping.
-- **For v2's percentiles**, the ~30 ns timer cost and ~10 ns steps are a large
-  share of a ~30–50 ns message; rely on throughput for absolute numbers and on
-  latency for the shape of the distribution.
+- **The book was ~97% of the time**: 263 ns/msg total against an 8 ns parse floor.
+- **Replace was the slowest message** (p50 581 ns): a lookup, a full remove and an add.
+- **Deletes and executes were slower than adds** (p50 381 and 411 vs 251 ns):
+  following `std::unordered_map` and `std::map` node pointers to orders
+  allocated long ago, then freeing nodes.
+- **Throughput was noisy run to run** (cv 10.8%, slow first repetition): v1
+  is bound by cache misses on ~1.9 M scattered nodes and by heap growth.
+
+### v2 analysis
+
+- **1.8x faster throughput, 2–2.4x better latency percentiles.** The gain is
+  larger in the tail (p99 2.4x) than the median (2.0x): with no allocation on
+  the hot path, slow outliers became rarer. Run-to-run noise fell too
+  (cv 10.8% -> 4.0%).
+- **Every message type improved.** Deletes gained most (p50 381 -> 140 ns,
+  2.7x) and are now faster than adds, the reverse of v1: removing no longer
+  walks heap nodes or frees memory, it's a hash erase plus an O(1) unlink.
+- **The goal of "tens of ns" was not reached.** ~138 ns of book work per
+  message remains. The component breakdown shows where:
+  - **`map_insert` is the single largest cost** (p50 140 ns, ~110 ns net of the
+    timer), against 50 ns for `map_find` and `map_erase`. The multiplicative
+    (Fibonacci) hash sends every new ref to an effectively random slot of the
+    128 MB table, so nearly every insert misses the cache. Finds and erases are
+    cheap because most target orders added shortly before, whose slots are
+    still cached.
+  - Net of the ~30 ns timer, an add is ~insert + `book_add` ≈ 110 + 30 ns,
+    which accounts for A's p50 (160 - 30 = 130 ns). A delete is ~erase +
+    `book_remove` ≈ 20 + 50 ns against D's ~110 ns net; the rest is parsing,
+    the crossed-book check and freeing the pool slot. Inserts dominate adds;
+    nothing single dominates deletes.
+  - `book_remove` (p50 80, mean 109) costs more than `book_add` (60 / 69):
+    unlinking writes to both neighbouring orders, which may not be cached, and
+    an emptied level is erased from the vector.
+- **Tail**: p99.9 is ~1 µs and max 0.6 ms. Maxima are single events (VM pauses,
+  page faults) and vary between runs; p99/p99.9 are the meaningful tail figures.
+
+### Next steps
+
+1. **Hash for locality (O2b).** ITCH refs are roughly increasing (~45% dense),
+   so taking the low bits of the ref (`ref & mask`) instead of a multiplicative
+   hash would put consecutive new orders in neighbouring slots, four per cache
+   line, turning most `map_insert` misses into hits. Risk: clustering for
+   long-lived orders and the ~25% of adds whose refs arrive out of order.
+   Measure `map_insert` and throughput; the design already planned this
+   comparison.
+2. **Huge pages** for the pool and the hash table (256 MB of 4 KB pages), to
+   cut TLB misses on the random accesses that remain.

@@ -1,0 +1,10 @@
+verify: OK (8906 books, 0 live orders, BookManager errors 0)
+data/itch/12302019.NASDAQ_ITCH50: 268744780 messages, skipped 0, timer rdtsc (0.41 ns/tick)
+  component           count     mean     p50     p90     p99    p99.9        max   (ns)
+  timer            10000000     25.3      30      30      30       30      37650
+  map_find         30249484     80.5      50     140     291      471     136085
+  map_insert      140270523    142.7     140     160     411      491     255218
+  map_erase       140270523     78.7      50     150     291      481     248846
+  book_add        140270523     69.2      60     100     240      491     514633
+  book_reduce       4339958     59.6      50      80     230      421     478365
+  book_remove     140270523    109.2      80     191     431      781     542004

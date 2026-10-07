@@ -53,6 +53,36 @@ Build with `--bench` flag
 ./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=results.json --benchmark_out_format=json
 ```
 
+## Performance
+
+Order book replaying a full Nasdaq trading day: `12302019.NASDAQ_ITCH50`,
+268.7 M messages across ~8,900 symbols, every message applied to a full-depth
+book (up to 1.9 M live orders). Single thread on a GitHub Actions runner
+(AMD EPYC 7763, x86-64), GCC 13.3, `-O3`. 0 book errors.
+
+| Throughput | Latency p50 | Latency p99 | Latency p99.9 |
+|---|---|---|---|
+| 146 ns/msg (6.8 M msg/s) | 160 ns | 611 ns | 1,012 ns |
+
+
+Per component (ns):
+
+| Component | p50 | p99 |
+|---|---|---|
+| Market event | 160 | 611 |
+| Order book insert | 60 | 240 |
+| Order book remove | 80 | 431 |
+| Order map lookup | 50 | 291 |
+| Order map insert | 140 | 411 |
+
+- Throughput is the median of 5 full-day replays; latencies time each call
+  individually with `rdtsc` and include the timer itself (~30 ns per reading).
+- ITCH parsing alone costs 8 ns/msg; the rest is the book. Inserting new orders
+  into the hash map is the largest remaining cost.
+
+Design, methodology and full results:
+[docs/design/order-book-optimizations.md](docs/design/order-book-optimizations.md).
+
 ## Directory
 
 ```

@@ -1,0 +1,18 @@
+{
+  "label": "v2-gha-x86",
+  "file": "12302019.NASDAQ_ITCH50",
+  "machine": "Linux x86_64",
+  "messages": 268744780,
+  "skipped": 0,
+  "live_orders_at_end": 0,
+  "verified": true,
+  "timer": {"source": "rdtsc", "ns_per_tick": 0.4089, "empty_pair": {"count": 10000000, "mean": 25.3, "min": 20, "p50": 30, "p90": 30, "p99": 30, "p999": 30, "max": 37650, "over_65us": 0}},
+  "components": {
+    "map_find": {"count": 30249484, "mean": 80.5, "min": 20, "p50": 50, "p90": 140, "p99": 291, "p999": 471, "max": 136085, "over_65us": 7},
+    "map_insert": {"count": 140270523, "mean": 142.7, "min": 20, "p50": 140, "p90": 160, "p99": 411, "p999": 491, "max": 255218, "over_65us": 12},
+    "map_erase": {"count": 140270523, "mean": 78.7, "min": 20, "p50": 50, "p90": 150, "p99": 291, "p999": 481, "max": 248846, "over_65us": 6},
+    "book_add": {"count": 140270523, "mean": 69.2, "min": 30, "p50": 60, "p90": 100, "p99": 240, "p999": 491, "max": 514633, "over_65us": 18},
+    "book_reduce": {"count": 4339958, "mean": 59.6, "min": 30, "p50": 50, "p90": 80, "p99": 230, "p999": 421, "max": 478365, "over_65us": 1},
+    "book_remove": {"count": 140270523, "mean": 109.2, "min": 30, "p50": 80, "p90": 191, "p99": 431, "p999": 781, "max": 542004, "over_65us": 24}
+  }
+}
