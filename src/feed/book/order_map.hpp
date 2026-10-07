@@ -63,12 +63,17 @@ public:
   }
 
 private:
+  // TODO: possibly store the lower 32bits of the ref as a "tag" so cache line can hold 8 slots instead of 4.
   struct Slot {
     OrderRef ref = 0;
     uint32_t index = 0;
   }; // 16 bytes: 4 per cache line
 
   // Fibonacci hashing: multiply by 2^64/phi, keep the top bits
+  // TODO: subsequent refs are scattered randomly, 2 subsequent orders land in unrelated
+  // slots of the 128MB table - touching a cache line nobody used recently. This is costly
+  // to map_insert. We can consider hashing by the ref's low bits for cache locality.
+  // Risk: long-lived ordes and out-of-order refs can form large clusters with linear probing.
   std::size_t home(OrderRef ref) const {
     return static_cast<std::size_t>((ref * 0x9E3779B97F4A7C15ull) >> shift_);
   }

@@ -396,5 +396,14 @@ Source: [v2-gha-x86-latency-micro.json](order-book-results/v2/v2-gha-x86-latency
    long-lived orders and the ~25% of adds whose refs arrive out of order.
    Measure `map_insert` and throughput; the design already planned this
    comparison.
-2. **Huge pages** for the pool and the hash table (256 MB of 4 KB pages), to
-   cut TLB misses on the random accesses that remain.
+2. **Smaller hash slots**. A slot is 16bytes (8-byte ref + 4-byte index + padding).
+   Storing only the index plus part of the ref can give 8-byte slots (8 per cache line).
+   Risk: tag match on different ref costs one extra pool read. 32-bit tags only happen when
+   2 live refs share their low 32 bits which has low chance of happening within a day.
+3. **Huge pages** for the pool and the hash table (256 MB of 4 KB pages), to
+   cut TLB misses on the random accesses that remain. `std::vector` does not let us control alignment
+   or page size, so we should allocate storage ourselves with a new `huge_array` container.
+   Currently, github runner machines have about 8MB of TLB coverage against 280MB of randomly accessed memory
+   from our OrderPool+orderMap+price-level vectors (a given page would be in TLB only about 3% of the time).
+   By increasing page size, we can reduce TLB miss and TLB page walking (~100ns on hyper-v VMs).
+
