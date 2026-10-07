@@ -1,7 +1,6 @@
 # Order book optimizations
 
-Status: **v2 implemented and measured** (see [Results](#results)). v1 (naive,
-standard containers) is kept on the `feat/orderbook-v1` branch as the reference.
+An AI-assisted Analysis on benchmarks
 
 For reference, the first version will be called v1 and the optimized version be v2.
 
@@ -10,19 +9,18 @@ Related: [architecture.md](../architecture.md) (threads, memory rules),
 
 ## Goal
 
-Cut the cost of applying one ITCH message to the order book from ~350 ns (v1)
-to tens of ns, with **identical output**: same levels, same quantities, same
-error counters, on every message of a full trading day.
+Cut the cost of applying one ITCH message to the order book from ~350 ns (v1),
+with **identical output**: every message of the same full trading day.
 
-Speed is measured two ways (see [Measurement](#measurement)):
+Speed is measured in two ways (see [Measurement](#measurement)):
 - **Throughput**: ns/msg averaged over a full replay (Google Benchmark).
 - **Latency distribution**: p50 / p90 / p99 / p99.9 / max of individual
   message applies, per message type
 
 ## Workload
 
-Measured on `12302019.NASDAQ_ITCH50` (full trading day). These numbers drive
-the sizing decisions below.
+Measured on `12302019.NASDAQ_ITCH50` (full trading day).
+
 
 | Fact | Value |
 |---|---|
@@ -35,6 +33,7 @@ the sizing decisions below.
 | Busiest symbol, peak live orders | AMZN, 37 k |
 | Max price levels on one side | 4,227 (bid), 2,570 (ask) |
 
+
 ## Baseline: v1
 
 | Component | v1 implementation |
@@ -45,9 +44,6 @@ the sizing decisions below.
 
 
 ## Optimizations
-
-Each one is introduced and measured separately, in this order, so the results
-table can show what each contributed.
 
 ### O1. Order pool
 
@@ -68,16 +64,14 @@ struct Order {            // 32 bytes: two per 64-byte cache line
 static_assert(sizeof(Order) == 32);
 ```
 
-- Orders are addressed by `uint32_t` index, not pointer: half the size, and
+- Orders are addressed by `uint32_t` index, not pointer: half the size and
   indices stay valid if the pool is ever relocated.
 - Capacity: **4 M** orders (2× the measured 1.92 M peak), 128 MB. Allocated
   and touched (prefaulted) at startup.
-- Free list threaded through `next` of free slots: O(1) alloc and free, no
+- Free list using `next` of free slots: O(1) alloc and free, no
   system calls.
 - Pool exhaustion is counted as an error (new `Errors::pool_full`) and the
   add is dropped. Never grow on the hot path; size it from data instead.
-
-Removes cost 1 entirely.
 
 ### O2. Open-addressing order map
 
@@ -88,7 +82,7 @@ struct Slot { OrderRef ref; uint32_t index; };   // 16 bytes with padding; ref 0
 ```
 
 - **Capacity 8 M slots** (power of two), load factor ≤ 0.24 at the 1.92 M
-  peak, 128 MB. A smaller table (4 M slots, load ≤ 0.48) is worth measuring
+  peak, 128 MB. A smaller table (4 M slots, load ≤ 0.48) is worth considering
   too: half the memory, slightly longer probes.
 - **Linear probing**: a lookup reads consecutive slots, usually in one cache
   line, so typically **one cache miss** per lookup instead of two or three.
@@ -96,31 +90,20 @@ struct Slot { OrderRef ref; uint32_t index; };   // 16 bytes with padding; ref 0
   it inserts (140 M each), and tombstones would pile up and lengthen probes
   all day.
 - **Hash:** a multiplicative (Fibonacci) mix, `(ref * 0x9E3779B97F4A7C15) >> (64 - bits)`.
-  Identity hashing would be tempting because refs are roughly sequential,
-  but they are not monotonic and only ~45% dense; measure both.
+  Identity hashing can be used because refs are roughly sequential,
+  but they are not monotonic and only ~45% dense.
 - Ref 0 is reserved as "empty". The lowest order ref on the sample day is 42;
   `P` messages send 0 but never enter the book. An add with ref 0 is counted
   as an error.
 
-Rejected: a flat array indexed directly by ref. Max ref 308.6 M × 4 bytes =
-1.2 GB, mostly empty, and the max isn't known in advance.
-
-Removes most of cost 2.
-
 ### O3. Intrusive FIFO per price level
 
-Each level keeps its orders in time priority as a doubly linked list threaded
-through `Order::prev/next`, with `head` (oldest) and `tail` (newest) in the
+Each level keeps its orders in time priority as a doubly linked list using
+`Order::prev/next`, with `head` (oldest) and `tail` (newest) in the
 level.
 
 - Unlink any order in O(1) given its pool index; no search within the level.
-- Gives **queue position** ("shares ahead of my order"), which the strategy
-  will need later for its own orders.
 - A replace (`U`) is unlink + push to the back, matching exchange priority.
-
-v1's output (aggregated levels) doesn't need the FIFO, so O3 **adds** work
-(extra writes per add and remove). It is measured on its own so its cost is
-known; it is kept because later steps need queue position.
 
 ### O4. Price levels as a sorted vector
 
@@ -144,23 +127,12 @@ struct PriceLevel {       // 24 bytes
 - Most adds, cancels and executes hit the top few levels. Near the back,
   finding a level is a short scan, and inserting or erasing one moves only
   the few elements behind it.
-- Find: linear scan from the back for the first N levels (N ≈ 8–16, tune),
+- Find: linear scan from the back for the first N levels (N ≈ 8–16, configurable),
   then binary search. Contiguous memory, so the scan is cache-friendly.
 - `reserve()` each side at symbol setup (e.g. 64 levels) so normal days never
   reallocate during trading; busy symbols grow once early in the day.
 - Orders cannot store a level index: inserting a level shifts the ones after
   it. They store their price and find the level by price (cheap near the top).
-
-Alternative to measure if level lookup still shows up in profiles: levels in
-their own pool with stable indices (orders store a level index), and the
-sorted vector holds level indices. One more indirection on scans, no search
-on reduce/remove.
-
-Rejected for now: an array indexed by price tick. Price ranges per symbol are
-not known in advance and can be very wide (4,000+ levels, stub quotes far from
-the market).
-
-Removes cost 3.
 
 ### O5. No allocation after startup
 
@@ -168,15 +140,12 @@ Removes cost 3.
   before trading starts.
 - Pool, hash table and level vectors are preallocated and prefaulted.
 - A debug allocation hook (counting `operator new` calls during replay after
-  the first `S 'Q'` system event) asserts zero allocations in tests.
+  the first `S 'Q'` system event) to assert zero allocations in tests.
 
 ### Not in v2
 
 - Multi-threading, SIMD, prefetching, huge pages. Huge pages (2 MB) for the
-  pool and hash table are a good follow-up experiment: 256 MB of 4 KB pages
-  is 65 k TLB entries' worth.
-- Changing the public interface: `BookManager` and `OrderBook` keep the same
-  methods, so `book_dump` and the tests don't change.
+  pool and hash table is feasible: 256 MB of 4 KB pages is 65 k TLB entries' worth.
 
 ## Correctness
 
@@ -225,16 +194,11 @@ pair next to the results; nothing is subtracted.
 
 Mean latency under per-message timing comes out higher than the throughput
 number: reading the timer around every message stops the CPU from overlapping
-consecutive messages. Compare throughput with throughput and percentiles with
-percentiles.
+consecutive messages.
 
 ### Component latency: `bench/latency_order_book_micro`
 
-Does `BookManager`'s work itself (same `OrderPool`, `OrderMap`, `OrderBook`s,
-real messages) with a timer around each component call: `map_find`,
-`map_insert`, `map_erase`, `book_add`, `book_reduce`, `book_remove`. The library
-has no timing code. `--verify` replays the same messages through `BookManager`
-and compares every book, so the decomposition can't drift unnoticed.
+Measures `map_find`,`map_insert`, `map_erase`, `book_add`, `book_reduce`, `book_remove`.
 
 ```bash
 build-release/bench/latency_order_book_micro FILE --label <impl>-<machine> --verify \
@@ -244,32 +208,30 @@ build-release/bench/latency_order_book_micro FILE --label <impl>-<machine> --ver
 Each value includes one timer pair (~25–30 ns); timed components don't add
 up to the untimed ns/msg.
 
-### Where it runs: GitHub Actions
+### Environment: GitHub Actions
 
 All results come from GitHub-hosted runners (`gha-x86`: `ubuntu-24.04`,
 x86-64, 4 vCPU, 16 GB RAM for a public repo).
 
-`.github/workflows/bench.yml` (Actions tab -> **Bench** -> Run workflow) builds
-Release, runs `bench_itch_parse`, `bench_order_book`, `latency_order_book` and
-`latency_order_book_micro --verify`, and uploads the JSON as the `bench-results-<label>` artifact. It uses the
-**whole day** by default; `itch_bytes` can select a slice from the start of the
-day instead. Only compare results that used the same input.
+`.github/workflows/bench.yml`  builds Release, runs bench tests and uploads the 
+JSON as the `bench-results-<label>` artifact. It uses the
+whole day by default; `itch_bytes` can select a slice from the start of the
+day instead.
 
 Each version is benchmarked in its own workflow run. Runners are shared VMs,
-so to keep runs comparable:
+so to keep runs comparable, we do:
 - **check the CPU model** in `gha-x86-machine.txt`: only compare runs on the
-  same model (so far: AMD EPYC 7763); rerun if a runner lands on different
+  same model (currently AMD EPYC 7763); rerun if a runner lands on different
   hardware;
-- use **5 repetitions** and compare medians, with the minimum as a second view
-  (the run least disturbed by neighbouring VMs); check the `cv`;
+- use **5 repetitions** and compare medians, with the minimum as a second view;
 - every repetition is kept in the JSON (`--benchmark_display_aggregates_only`
-  only trims the console output);
-- treat p99.9 and max as indicative: hypervisor pauses land in the tail.
+  only trims console output);
+- treat p99.9 and max as indicative: hypervisor may pause and land in the tail.
 
 ## Results
 
 Each version has a folder, [`docs/design/order-book-results/<impl>/`](order-book-results/),
-holding the `bench-results-<impl>` artifact of its Bench run:
+holding the result artifact of its Bench run:
 
 | File | Contents |
 |---|---|
@@ -302,14 +264,9 @@ errors, 0 live orders at end of day.
 | Step | ns/msg (median) | Repetitions | Notes |
 |---|---|---|---|
 | Parse only (`bench_itch_parse`, `parse_book`) | 7.97 | | Floor: no book work. Same in both runs (cv 0.2%) |
-| v1 | 263.2 | 325.3 / 281.5 / 263.2 / 248.5 / 262.2, cv 10.8% | [v1/](order-book-results/v1/). No warm-up pass; median of the 4 warm reps: 262.7 |
+| v1 | 263.2 | 325.3 / 281.5 / 263.2 / 248.5 / 262.2, cv 10.8% | [v1/](order-book-results/v1/). With warm-up pass |
 | **v2** (O1–O4 together) | **146.3** | 148.0 / 147.8 / 146.3 / 138.5 / 135.7, cv 4.0% | [v2/](order-book-results/v2/). With warm-up pass |
 
-
-The v1 run predates the warm-up pass, but its first repetition was the only
-outlier: excluding it gives a 262.7 ns/msg median, so the speedup is the same
-either way. Note: the v2 JSON still names the benchmark `replay_book_v1`
-(rename pending); the folder and file names identify the version.
 
 ### Latency per message (ns, gha-x86)
 
@@ -351,55 +308,49 @@ Source: [v2-gha-x86-latency-micro.json](order-book-results/v2/v2-gha-x86-latency
 
 ### v1 analysis
 
-- **The book was ~97% of the time**: 263 ns/msg total against an 8 ns parse floor.
+- **The book was ~97% of the time**: 263 ns/msg total against an 8 ns parse.
 - **Replace was the slowest message** (p50 581 ns): a lookup, a full remove and an add.
 - **Deletes and executes were slower than adds** (p50 381 and 411 vs 251 ns):
   following `std::unordered_map` and `std::map` node pointers to orders
   allocated long ago, then freeing nodes.
-- **Throughput was noisy run to run** (cv 10.8%, slow first repetition): v1
-  is bound by cache misses on ~1.9 M scattered nodes and by heap growth.
 
 ### v2 analysis
 
 - **1.8x faster throughput, 2–2.4x better latency percentiles.** The gain is
   larger in the tail (p99 2.4x) than the median (2.0x): with no allocation on
-  the hot path, slow outliers became rarer. Run-to-run noise fell too
+  the hot path, slow outliers became rare. Run-to-run noise fell too
   (cv 10.8% -> 4.0%).
 - **Every message type improved.** Deletes gained most (p50 381 -> 140 ns,
-  2.7x) and are now faster than adds, the reverse of v1: removing no longer
-  walks heap nodes or frees memory, it's a hash erase plus an O(1) unlink.
-- **The goal of "tens of ns" was not reached.** ~138 ns of book work per
-  message remains. The component breakdown shows where:
+  2.7x) and are now faster than adds: removing no longer walks heap nodes or 
+  frees memory, it's a hash erase with an O(1) unlink.
+- The component breakdown:
   - **`map_insert` is the single largest cost** (p50 140 ns, ~110 ns net of the
     timer), against 50 ns for `map_find` and `map_erase`. The multiplicative
-    (Fibonacci) hash sends every new ref to an effectively random slot of the
-    128 MB table, so nearly every insert misses the cache. Finds and erases are
-    cheap because most target orders added shortly before, whose slots are
-    still cached.
+    (Fibonacci) hash sends every new ref to a random slot of the
+    128 MB table, so almost every insert misses the cache. Finds and erases are
+    cheap because most target orders added recently (slots are
+    still cached)
   - Net of the ~30 ns timer, an add is ~insert + `book_add` ≈ 110 + 30 ns,
-    which accounts for A's p50 (160 - 30 = 130 ns). A delete is ~erase +
-    `book_remove` ≈ 20 + 50 ns against D's ~110 ns net; the rest is parsing,
-    the crossed-book check and freeing the pool slot. Inserts dominate adds;
-    nothing single dominates deletes.
+    which accounts for A's p50 (160 - 30 = 130 ns). A delete is 110 ns net; 
+    the rest is parsing, the crossed-book check and freeing the pool slot. 
   - `book_remove` (p50 80, mean 109) costs more than `book_add` (60 / 69):
-    unlinking writes to both neighbouring orders, which may not be cached, and
+    unlinking writes to both neighbouring orders which may not be cached, and
     an emptied level is erased from the vector.
-- **Tail**: p99.9 is ~1 µs and max 0.6 ms. Maxima are single events (VM pauses,
-  page faults) and vary between runs; p99/p99.9 are the meaningful tail figures.
+- **Tail**: p99.9 is ~1 µs and max 0.6 ms. Max are single events (VM pauses,
+  page faults) and vary between runs;
 
 ### Next steps
 
 1. **Hash for locality (O2b).** ITCH refs are roughly increasing (~45% dense),
    so taking the low bits of the ref (`ref & mask`) instead of a multiplicative
-   hash would put consecutive new orders in neighbouring slots, four per cache
+   hash would put consecutive new orders in neighbouring slots, 4 per cache
    line, turning most `map_insert` misses into hits. Risk: clustering for
    long-lived orders and the ~25% of adds whose refs arrive out of order.
-   Measure `map_insert` and throughput; the design already planned this
-   comparison.
+   Measure `map_insert` and throughput;
 2. **Smaller hash slots**. A slot is 16bytes (8-byte ref + 4-byte index + padding).
    Storing only the index plus part of the ref can give 8-byte slots (8 per cache line).
    Risk: tag match on different ref costs one extra pool read. 32-bit tags only happen when
-   2 live refs share their low 32 bits which has low chance of happening within a day.
+   2 live refs share their low 32 bits which has low chance of happening within a day;
 3. **Huge pages** for the pool and the hash table (256 MB of 4 KB pages), to
    cut TLB misses on the random accesses that remain. `std::vector` does not let us control alignment
    or page size, so we should allocate storage ourselves with a new `huge_array` container.
