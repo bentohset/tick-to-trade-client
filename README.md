@@ -1,8 +1,8 @@
 # Tick To Trade Client
 
 A low latency trading client in C++23 that simulates a trading firm's side of an exchange connection.
-It consumes Nasdaq ITCH 5.0 market data, rebuilds the full order book, and sends orders
-over interchangeable OUCH and FIX gateways.
+It parses ITCH 5.0 market feed, handles the orders in an order book and sends orders over interchangeable OUCH
+and FIX gateways.
 
 - **Market data in:** receives ITCH over MoldUDP64 multicast, detects and
   recovers from dropped packets, and maintains a per-symbol mirror of the
@@ -15,12 +15,13 @@ over interchangeable OUCH and FIX gateways.
 
 ## Build
 
-```
+```bash
 ./build.sh --test --bench
 ./build.sh --release --bench
 ```
 
 book_dump:
+
 ``` bash
 # check file is complete (parser only)
 ./build/book_dump data/itch/12302019.NASDAQ_ITCH50
@@ -30,7 +31,7 @@ book_dump:
 ./build/book_dump data/itch/12302019.NASDAQ_ITCH50 --symbol AAPL --at 10:30 --depth 5
 ```
 
-book_dump useful moments:
+book_dump useful commands:
 
 ```bash
 # just before the opening cross
@@ -47,7 +48,7 @@ book_dump FILE --symbol AAPL --at 04:00:01
 
 Build with `--bench` flag
 
-```
+```bash
 ./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true
 
 ./build/bench/bench_itch_parse data/itch/12302019.NASDAQ_ITCH50 --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=results.json --benchmark_out_format=json
@@ -60,12 +61,14 @@ Order book replaying a full Nasdaq trading day: `12302019.NASDAQ_ITCH50`,
 book (up to 1.9 M live orders). Single thread on a GitHub Actions runner
 (AMD EPYC 7763, x86-64), GCC 13.3, `-O3`. 0 book errors.
 
+
 | Throughput | Latency p50 | Latency p99 | Latency p99.9 |
 |---|---|---|---|
 | 146 ns/msg (6.8 M msg/s) | 160 ns | 611 ns | 1,012 ns |
 
 
 Per component (ns):
+
 
 | Component | p50 | p99 |
 |---|---|---|
@@ -77,7 +80,7 @@ Per component (ns):
 
 - Throughput is the median of 5 full-day replays; latencies time each call
   individually with `rdtsc` and include the timer itself (~30 ns per reading).
-- ITCH parsing alone costs 8 ns/msg; the rest is the book. Inserting new orders
+- ITCH parsing costs 8 ns/msg; the rest is the book. Inserting new orders
   into the hash map is the largest remaining cost.
 
 Design, methodology and full results:
@@ -88,8 +91,6 @@ Design, methodology and full results:
 ```
 tick-to-trade-client/
 ├── docs/
-│   ├── architecture.md          # threads, data flow, design decisions
-│   ├── latency-results.md       # p50/p99/p99.9 numbers, hardware used
 │   ├── design/                  # feature design docs
 │   └── protocols/               # notes on ITCH 5.0, OUCH, MoldUDP64, SoupBinTCP
 ├── config/
@@ -97,11 +98,7 @@ tick-to-trade-client/
 │   └── risk_limits.toml         # max order size, max position, price bands
 │
 ├── src/
-│   ├── core/                     # low-level building blocks, no trading logic
-│   │   ├── spsc_queue.hpp        # lock-free ring buffer between threads
-│   │   ├── object_pool.hpp       # preallocated orders, no malloc on hot path
-│   │   ├── clock.hpp             # rdtsc timestamps + calibration
-│   │   ├── endian.hpp            # big-endian reads for wire formats
+│   ├── core/                     # low-level building blocks, no biz logic
 │   │   ├── mapped_file.hpp/.cpp  # RAII mmap of a whole file as a byte span
 │   │   ├── format.hpp            # parse/print time of day, print Price(4)
 │   │   ├── latency_histogram.hpp # 1 ns buckets up to 65 us, percentiles
@@ -122,13 +119,7 @@ tick-to-trade-client/
 │   │   │   ├── parser.hpp           # zero-copy decode, dispatch on msg type
 │   │   │   ├── framing.hpp          # byte buffer
 │   │   │   └── symbol_directory.hpp # stock locate code -> symbol
-│   │   ├── book/
-│   │   │   ├── order_book.hpp/.cpp  # per-symbol book, O(1) cancel by order id
-│   │   │   ├── order_map.hpp        # Linear probing map: order ref -> pool index
-│   │   │   ├── order_pool.hpp       # preallocated orders + free list, uint32 indices
-│   │   │   ├── price_level.hpp      # one price: totals + FIFO of its orders
-│   │   │   ├── types.hpp
-│   │   │   └── book_manager.hpp/.cpp # ITCH handler: applies messages to all books
+│   │   ├── book/                    $ order book and manager
 │   │   └── feed_handler.hpp/.cpp     # glues the above, emits book update events
 │   │
 │   ├── strategy/

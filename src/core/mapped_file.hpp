@@ -5,6 +5,7 @@
 
 namespace ttt::core {
 
+// RAII mmap of a whole file as a byte span
 class MappedFile {
 public:
   explicit MappedFile(const std::filesystem::path&); // open, fstat, mmap

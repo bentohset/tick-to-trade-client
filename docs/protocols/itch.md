@@ -1,5 +1,7 @@
 # Nasdaq TotalView-ITCH 5.0
 
+> Assisted by AI to enhance learning.
+
 A binary, order-by-order market data feed. It reports every add, execute,
 cancel, delete, and replace of displayed orders on the Nasdaq book, which is
 enough to rebuild the **full depth** order book for every symbol. It is

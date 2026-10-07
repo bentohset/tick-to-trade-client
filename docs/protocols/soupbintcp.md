@@ -1,5 +1,7 @@
 # SoupBinTCP
 
+> Assisted by AI to enhance learning.
+
 Nasdaq's session-layer protocol over TCP. It provides login, heartbeats,
 and **sequenced, replayable delivery from server to client**. OUCH (and
 GLIMPSE) run on top of it. It is the TCP counterpart of MoldUDP64.

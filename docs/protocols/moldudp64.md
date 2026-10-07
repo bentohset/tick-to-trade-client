@@ -1,5 +1,7 @@
 # MoldUDP64
 
+> Assisted by AI to enhance learning.
+
 Nasdaq's lightweight transport for delivering a sequenced stream of messages
 over UDP multicast. It carries ITCH 5.0 in this project. MoldUDP64 adds
 **session identity, sequence numbers, and batching**, and nothing else. It

@@ -1,5 +1,7 @@
 # OUCH
 
+> Assisted by AI to enhance learning.
+
 Nasdaq's binary order entry protocol. The client sends orders and
 cancel/replace requests. The exchange sends acknowledgements, executions,
 cancels, and rejects. OUCH runs on top of [SoupBinTCP](soupbintcp.md):
