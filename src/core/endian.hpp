@@ -23,4 +23,9 @@ template <std::unsigned_integral T> [[nodiscard]] inline T load(const std::byte*
   return (uint64_t{load<uint16_t>(p)} << 32) | load<uint32_t>(p + 2);
 }
 
+template <std::unsigned_integral T> inline void store(std::byte* p, T v) noexcept {
+  if constexpr (std::endian::native == std::endian::little) v = std::byteswap(v);
+  std::memcpy(p, &v, sizeof v);
+}
+
 } // namespace ttt::be
