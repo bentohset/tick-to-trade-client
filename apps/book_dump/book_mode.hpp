@@ -8,6 +8,8 @@
 #include "feed/itch/parser.hpp"
 #include "feed/itch/symbol_directory.hpp"
 #include "options.hpp"
+
+#include <algorithm>
 namespace book_dump {
 
 namespace detail {

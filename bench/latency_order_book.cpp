@@ -91,16 +91,15 @@ void prefault(std::span<const std::byte> data) {
 }
 
 void json_stats(const LatencyHistogram& h) {
-  std::printf("{\"count\": %llu, \"mean\": %.1f, \"min\": %llu, \"p50\": %llu, \"p90\": %llu, "
-              "\"p99\": %llu, \"p999\": %llu, \"max\": %llu, \"over_65us\": %llu}",
-              static_cast<unsigned long long>(h.count()), h.mean(),
-              static_cast<unsigned long long>(h.min()),
-              static_cast<unsigned long long>(h.percentile(0.50)),
-              static_cast<unsigned long long>(h.percentile(0.90)),
-              static_cast<unsigned long long>(h.percentile(0.99)),
-              static_cast<unsigned long long>(h.percentile(0.999)),
-              static_cast<unsigned long long>(h.max()),
-              static_cast<unsigned long long>(h.overflow()));
+  std::printf(
+      "{\"count\": %llu, \"mean\": %.1f, \"min\": %llu, \"p50\": %llu, \"p90\": %llu, "
+      "\"p99\": %llu, \"p999\": %llu, \"max\": %llu, \"over_65us\": %llu}",
+      static_cast<unsigned long long>(h.count()), h.mean(),
+      static_cast<unsigned long long>(h.min()), static_cast<unsigned long long>(h.percentile(0.50)),
+      static_cast<unsigned long long>(h.percentile(0.90)),
+      static_cast<unsigned long long>(h.percentile(0.99)),
+      static_cast<unsigned long long>(h.percentile(0.999)),
+      static_cast<unsigned long long>(h.max()), static_cast<unsigned long long>(h.overflow()));
 }
 
 void table_row(std::string_view name, const LatencyHistogram& h) {
@@ -203,13 +202,14 @@ int main(int argc, char** argv) {
     // --- summary (stderr) ---
     std::fprintf(stderr, "%s: %llu messages, book_errors %llu, timer %s (%.2f ns/tick)\n",
                  args.file, static_cast<unsigned long long>(messages),
-                 static_cast<unsigned long long>(books->errors().total()),
-                 ttt::core::tick_source(), ns_per_tick);
+                 static_cast<unsigned long long>(books->errors().total()), ttt::core::tick_source(),
+                 ns_per_tick);
     std::fprintf(stderr, "  %-6s %12s %8s %7s %7s %7s %8s %10s   (ns)\n", "type", "count", "mean",
                  "p50", "p90", "p99", "p99.9", "max");
     table_row("timer", timer);
     for (const char t : kBookTypes) {
-      if (by_type[static_cast<unsigned char>(t)]) table_row(std::string(1, t), *by_type[static_cast<unsigned char>(t)]);
+      if (by_type[static_cast<unsigned char>(t)])
+        table_row(std::string(1, t), *by_type[static_cast<unsigned char>(t)]);
     }
     table_row("book", book);
     table_row("all", all);

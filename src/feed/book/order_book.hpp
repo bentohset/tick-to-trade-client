@@ -1,22 +1,23 @@
 #pragma once
 
+#include "feed/book/order_pool.hpp"
+#include "feed/book/price_level.hpp"
 #include "feed/book/types.hpp"
 
-#include <functional>
-#include <map>
 #include <optional>
 #include <vector>
 
 namespace ttt::book {
 
-// TODO: optimize away from naive std::map
 class OrderBook {
 public:
-  // new order at px
-  void add(Side side, Price px, Qty qty);
+  explicit OrderBook(OrderPool* pool);
+
+  void add(uint32_t idx);
 
   // exec / cancel / delete
-  void reduce(Side side, Price px, Qty, bool removes_order);
+  void reduce(uint32_t idx, Qty by);
+  void remove(uint32_t idx);
 
   std::optional<Level> best_bid() const;
   std::optional<Level> best_ask() const;
@@ -26,12 +27,10 @@ public:
   bool crossed() const;
 
 private:
-  struct Agg {
-    uint64_t qty = 0;
-    uint32_t orders = 0;
-  };
-  std::map<Price, Agg, std::greater<>> bids_; // begin() = highest bid
-  std::map<Price, Agg> asks_;                 // begin() = lowest ask
+  // Sorted worse to better, best price is at the back
+  std::vector<PriceLevel> bids_; // asc, back() = highest bid
+  std::vector<PriceLevel> asks_; // desc, back() = lowest ask
+  OrderPool* pool_;
 };
 
 } // namespace ttt::book

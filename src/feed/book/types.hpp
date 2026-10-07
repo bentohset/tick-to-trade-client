@@ -25,9 +25,11 @@ struct Errors {
   uint64_t over_reduce = 0;           // E/C/X removes more shares than order has left
   uint64_t unknown_locate = 0;        // order message for locate with no 'R' message
   uint64_t crossed_while_trading = 0; // bid > ask while state 'T', outside a reopening cross
+  uint64_t pool_full = 0;             // add dropped
 
   uint64_t total() const {
-    return unknown_ref + duplicate_ref + over_reduce + unknown_locate + crossed_while_trading;
+    return unknown_ref + duplicate_ref + over_reduce + unknown_locate + crossed_while_trading +
+           pool_full;
   }
 };
 

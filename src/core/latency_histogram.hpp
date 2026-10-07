@@ -45,8 +45,8 @@ public:
   // q in [0, 1]: 0.5 = p50, 0.99 = p99, 0.999 = p99.9.
   uint64_t percentile(double q) const {
     if (count_ == 0) return 0;
-    const auto rank = std::max<uint64_t>(
-        1, static_cast<uint64_t>(std::ceil(q * static_cast<double>(count_))));
+    const auto rank =
+        std::max<uint64_t>(1, static_cast<uint64_t>(std::ceil(q * static_cast<double>(count_))));
     uint64_t seen = 0;
     for (uint64_t ns = 0; ns < kExactLimitNs; ++ns) {
       seen += buckets_[ns];
@@ -59,7 +59,9 @@ public:
   uint64_t overflow() const { return overflow_; }
   uint64_t min() const { return count_ ? min_ : 0; }
   uint64_t max() const { return max_; }
-  double mean() const { return count_ ? static_cast<double>(sum_) / static_cast<double>(count_) : 0; }
+  double mean() const {
+    return count_ ? static_cast<double>(sum_) / static_cast<double>(count_) : 0;
+  }
 
 private:
   std::vector<uint64_t> buckets_;

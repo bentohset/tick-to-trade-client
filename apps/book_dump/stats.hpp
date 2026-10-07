@@ -14,7 +14,9 @@ struct Stats : ttt::itch::NullHandler {
 
   template <class Msg> void on(const Msg& m) { record(m); }
 
-  void on_other(char /*type*/, std::span<const std::byte> msg) { record(ttt::itch::Header{msg.data()}); }
+  void on_other(char /*type*/, std::span<const std::byte> msg) {
+    record(ttt::itch::Header{msg.data()});
+  }
 
 private:
   void record(const ttt::itch::Header& h) {

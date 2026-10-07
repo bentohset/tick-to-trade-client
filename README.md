@@ -60,18 +60,22 @@ tick-to-trade-client/
 ├── docs/
 │   ├── architecture.md          # threads, data flow, design decisions
 │   ├── latency-results.md       # p50/p99/p99.9 numbers, hardware used
+│   ├── design/                  # feature design docs
 │   └── protocols/               # notes on ITCH 5.0, OUCH, MoldUDP64, SoupBinTCP
 ├── config/
 │   ├── dev.toml                 # multicast group, gateway host/port, core pinning
 │   └── risk_limits.toml         # max order size, max position, price bands
 │
 ├── src/
-│   ├── core/                    # low-level building blocks, no trading logic
-│   │   ├── spsc_queue.hpp       # lock-free ring buffer between threads
-│   │   ├── object_pool.hpp      # preallocated orders, no malloc on hot path
-│   │   ├── clock.hpp            # rdtsc timestamps + calibration
-│   │   ├── endian.hpp           # big-endian reads for wire formats
-│   │   ├── cpu_affinity.hpp     # thread pinning
+│   ├── core/                     # low-level building blocks, no trading logic
+│   │   ├── spsc_queue.hpp        # lock-free ring buffer between threads
+│   │   ├── object_pool.hpp       # preallocated orders, no malloc on hot path
+│   │   ├── clock.hpp             # rdtsc timestamps + calibration
+│   │   ├── endian.hpp            # big-endian reads for wire formats
+│   │   ├── mapped_file.hpp/.cpp  # RAII mmap of a whole file as a byte span
+│   │   ├── format.hpp            # parse/print time of day, print Price(4)
+│   │   ├── latency_histogram.hpp # 1 ns buckets up to 65 us, percentiles
+│   │   ├── cpu_affinity.hpp      # thread pinning
 │   │   └── async_logger.hpp/.cpp
 │   │
 │   ├── net/                     # raw transport only, knows nothing about protocols
@@ -90,9 +94,12 @@ tick-to-trade-client/
 │   │   │   └── symbol_directory.hpp # stock locate code -> symbol
 │   │   ├── book/
 │   │   │   ├── order_book.hpp/.cpp  # per-symbol book, O(1) cancel by order id
-│   │   │   ├── price_level.hpp
-│   │   │   └── book_manager.hpp/.cpp
-│   │   └── feed_handler.hpp/.cpp    # glues the above, emits book update events
+│   │   │   ├── order_map.hpp        # Linear probing map: order ref -> pool index
+│   │   │   ├── order_pool.hpp       # preallocated orders + free list, uint32 indices
+│   │   │   ├── price_level.hpp      # one price: totals + FIFO of its orders
+│   │   │   ├── types.hpp
+│   │   │   └── book_manager.hpp/.cpp # ITCH handler: applies messages to all books
+│   │   └── feed_handler.hpp/.cpp     # glues the above, emits book update events
 │   │
 │   ├── strategy/
 │   │   ├── strategy.hpp         # interface: on_book_update(), on_fill(), ...
@@ -121,28 +128,36 @@ tick-to-trade-client/
 ├── apps/
 │   ├── trader/main.cpp          # full pipeline: feed -> strategy -> risk -> gateway
 │   ├── itch_replay/main.cpp     # reads Nasdaq sample file, sends MoldUDP64 multicast
-│   ├── book_dump/main.cpp       # offline: parse a file, print book for a symbol
+│   ├── book_dump/main.cpp       # offline: parse a file, print book or replay day
 │   └── mock_exchange/main.cpp   # minimal SoupBinTCP/OUCH server that acks and fills
 │
 ├── tests/
 │   ├── unit/
+│   ├── utils/
 │   ├── integration/
 │   │   ├── feed_end_to_end_test.cpp   # replay file -> compare final book snapshot
 │   │   └── gateway_session_test.cpp   # login, disconnect, replay against mock exchange
 │   └── data/                    # small ITCH captures + golden book snapshots
 │
 ├── bench/
-│   ├── bench_itch_parse.cpp     # messages/sec
-│   ├── bench_order_book.cpp     # ns per add/cancel/execute
+│   ├── bench_itch_parse.cpp         # messages/sec
+│   ├── bench_order_book.cpp         # full-day replay throughput, ns/msg
+│   ├── latency_order_book.cpp       # message latency by message type
+│   ├── latency_order_book_micro.cpp # component latency
 │   ├── bench_spsc_queue.cpp
 │   └── bench_tick_to_trade.cpp  # packet in -> order out latency
 │
 ├── scripts/
-│   ├── fetch_itch_sample.sh
+│   ├── fetch_itch_sample.sh     # download a Nasdaq ITCH day, or its first N messages
+│   ├── format.sh                # clang-format all .cpp/.hpp (--check for CI)
 │   ├── run_local.sh             # starts mock_exchange, itch_replay, trader
 │   └── plot_latency.py          # histograms from bench output
 │
-└── .github/workflows/ci.yml     # build, tests, sanitizers (ASan, UBSan, TSan)
+├── build.sh                     # configure + build: [--release] [--test] [--bench]
+│
+└── .github/workflows/
+    ├── ci.yml                   # gcc/clang Debug+Release build and tests, ASan+UBSan
+    └── bench.yml                # manual: full-day benchmarks on a GitHub x86 runner
 ```
 
 ## TODO Steps
@@ -155,14 +170,14 @@ ITCH, MoldUDP64, SoupBinTCP, OUCH, FIX. Download sample ITCH files.
 
 Reads a sample file from disk (memory-mapped) without networking. Helpers for big-endian, message layouts.
 
-3. [ ] Order book
+3. [x] Order book
 
   a. [x] Naive implementation
 
 The client maintains its own read-only order book to match with the exchange's order book.
 First implement without optimizations and ensure it can sync.
 
-  b. [ ] Optimized implementation
+  b. [x] Optimized implementation
 
 After that, optimize with intrusive lists (for cancel), object pools and others.
 

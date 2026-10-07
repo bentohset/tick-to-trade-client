@@ -19,3 +19,7 @@ target_link_libraries(bench_order_book PRIVATE ttt_feed benchmark::benchmark)
 # Per-message latency percentiles; plain executable, writes JSON to stdout
 add_executable(latency_order_book latency_order_book.cpp)
 target_link_libraries(latency_order_book PRIVATE ttt_feed)
+
+# Per-component latency percentiles (map find/insert/erase, book add/reduce/remove)
+add_executable(latency_order_book_micro latency_order_book_micro.cpp)
+target_link_libraries(latency_order_book_micro PRIVATE ttt_feed)

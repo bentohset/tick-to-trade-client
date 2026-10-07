@@ -4,7 +4,8 @@
 //   bench_order_book <itch-file> [--benchmark_* flags]
 //   e.g. build-release/bench/bench_order_book data/itch/12302019.NASDAQ_ITCH50
 //          --benchmark_repetitions=5 --benchmark_display_aggregates_only=true
-//          --benchmark_out=docs/design/order-book-results/v1/v1-gha-x86-bench.json --benchmark_out_format=json
+//          --benchmark_out=docs/design/order-book-results/v1/v1-gha-x86-bench.json
+//          --benchmark_out_format=json
 //
 // One iteration = one pass over the whole file through a fresh BookManager.
 // Construction and destruction of the BookManager aren't timed. The per_msg

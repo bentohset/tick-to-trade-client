@@ -9,7 +9,7 @@ namespace {
 constexpr std::size_t kExpectedLiveOrders = 4'000'000;
 } // namespace
 
-BookManager::BookManager() { orders_.reserve(kExpectedLiveOrders); }
+BookManager::BookManager() : pool_(kMaxOrders), map_(kMapSlots) {}
 
 void BookManager::on(const itch::SystemEvent& m) {
   if (m.event_code() == 'Q') market_open_ = true;
@@ -19,7 +19,8 @@ void BookManager::on(const itch::SystemEvent& m) {
 void BookManager::on(const itch::StockDirectory& m) {
   const uint16_t locate = m.stock_locate();
   if (locate >= books_.size()) {
-    books_.resize(locate + 1);
+    // resize is ok here because 'R' messages usually come before trading
+    books_.resize(locate + 1, OrderBook(&pool_));
     trading_state_.resize(locate + 1, 0);
     reopening_.resize(locate + 1, 0);
   }
@@ -66,15 +67,15 @@ void BookManager::on(const itch::OrderCancel& m) {
 void BookManager::on(const itch::OrderDelete& m) { check_crossed(remove(m.order_ref())); }
 
 void BookManager::on(const itch::OrderReplace& m) {
-  const auto it = orders_.find(m.original_order_ref());
-  if (it == orders_.end()) {
+  const uint32_t old_idx = map_.find(m.original_order_ref());
+  if (old_idx == kNil) {
     ++errors_.unknown_ref;
     return;
   }
   // 'U' has no side: the replcaement inherits side and symbol from original
   // then goes to back of the queue at new price
-  const uint16_t locate = it->second.locate;
-  const Side side = it->second.side;
+  const uint16_t locate = pool_[old_idx].locate;
+  const Side side = pool_[old_idx].side;
   remove(m.original_order_ref());
   check_crossed(add(m.new_order_ref(), locate, side, m.price(), m.shares()));
 }
@@ -91,49 +92,53 @@ uint16_t BookManager::add(OrderRef ref, uint16_t locate, Side side, Price px, Qt
     ++errors_.unknown_locate;
     return kNoLocate;
   }
-  const auto [it, inserted] = orders_.try_emplace(ref, Order{locate, side, px, qty});
-  if (!inserted) {
+  const uint32_t idx = pool_.alloc();
+  if (idx == kNil) {
+    ++errors_.pool_full;
+    return kNoLocate;
+  }
+  if (!map_.insert(ref, idx)) {
+    pool_.free(idx);
     ++errors_.duplicate_ref;
     return kNoLocate;
   }
-  books_[locate].add(side, px, qty);
+  Order& o = pool_[idx];
+  o.ref = ref;
+  o.locate = locate;
+  o.price = px;
+  o.qty = qty;
+  o.side = side;
+  books_[locate].add(idx);
   return locate;
 }
 
 uint16_t BookManager::reduce(OrderRef ref, Qty qty) {
-  const auto it = orders_.find(ref);
-  if (it == orders_.end()) {
+  const uint32_t idx = map_.find(ref);
+  if (idx == kNil) {
     ++errors_.unknown_ref;
     return kNoLocate;
   }
-  Order& o = it->second;
+  Order& o = pool_[idx];
   // clamp if over_reduce
   if (qty > o.qty) {
     ++errors_.over_reduce;
     qty = o.qty;
   }
-  const uint16_t locate = o.locate;
-  const bool removes = qty == o.qty;
-  books_[locate].reduce(o.side, o.price, qty, removes);
-  if (removes) {
-    orders_.erase(it);
-  } else {
-    o.qty -= qty;
-  }
-  return locate;
+  if (qty == o.qty) return remove(ref);
+  books_[o.locate].reduce(idx, qty);
+  return o.locate;
 }
 
 uint16_t BookManager::remove(OrderRef ref) {
-  const auto it = orders_.find(ref);
-  if (it == orders_.end()) {
+  const uint32_t idx = map_.erase(ref);
+  if (idx == kNil) {
     ++errors_.unknown_ref;
     return kNoLocate;
   }
-  // copy the order before erasing it; 4 small fields is cheap
-  const Order o = it->second;
-  books_[o.locate].reduce(o.side, o.price, o.qty, true);
-  orders_.erase(it);
-  return o.locate;
+  const uint16_t locate = pool_[idx].locate;
+  books_[locate].remove(idx);
+  pool_.free(idx);
+  return locate;
 }
 
 // During market hours a trading symbol's book must no be crossed (bid > ask).

@@ -119,12 +119,18 @@ jobs:
             > "$R/$L-$MACHINE-latency.json" 2> "$R/latency.txt"
           cat "$R/latency.txt"
 
+          # Per-component latency; --verify replays through BookManager afterwards and
+          # fails the step if any book differs from the decomposed replay
+          $PIN build-release/bench/latency_order_book_micro "$F" --label "$L-$MACHINE" --verify \
+            > "$R/$L-$MACHINE-latency-micro.json" 2> "$R/latency-micro.txt"
+          cat "$R/latency-micro.txt"
+
       - name: Summary
         if: always()
         run: |
           {
             echo "## Bench: ${{ inputs.label }} on $MACHINE (${{ inputs.itch_bytes }} bytes of $ITCH_DAY)"
-            for f in parse book latency; do
+            for f in parse book latency latency-micro; do
               [[ -f "results/$f.txt" ]] || continue
               echo "### $f"
               echo '```'
