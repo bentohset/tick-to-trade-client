@@ -20,6 +20,8 @@ and FIX gateways.
 ./build.sh --release --bench
 ```
 
+## Run a Scenario
+
 book_dump:
 
 ``` bash
@@ -42,6 +44,16 @@ book_dump FILE --symbol AAPL --at 09:30:00.5 --depth 3
 book_dump FILE --symbol AAPL --at 15:59:59 --depth 20
 # just after pre-market opens
 book_dump FILE --symbol AAPL --at 04:00:01
+```
+
+itch_replay + feed_rx (simulate itch moldudp64):
+
+```bash
+# in one terminal (do this first)
+./build/feed_rx --symbol AAPL --depth 5
+# in second terminal
+./build/itch_replay data/itch/12302019.NASDAQ_ITCH50
+./build/itch_replay data/itch/12302019.NASDAQ_ITCH50 --drop-rate 0.01
 ```
 
 ## Benchmark
@@ -111,15 +123,9 @@ tick-to-trade-client/
 │   │   └── socket_opts.hpp      # busy polling, buffer sizes, TCP_NODELAY
 │   │
 │   ├── feed/                    # MARKET DATA IN
-│   │   ├── moldudp64/
-│   │   │   ├── session.hpp/.cpp     # sequence tracking, gap detection
-│   │   │   └── recovery.hpp/.cpp    # retransmit requests / snapshot fallback
-│   │   ├── itch/
-│   │   │   ├── messages.hpp         # ITCH 5.0 layouts and field offsets
-│   │   │   ├── parser.hpp           # zero-copy decode, dispatch on msg type
-│   │   │   ├── framing.hpp          # byte buffer
-│   │   │   └── symbol_directory.hpp # stock locate code -> symbol
-│   │   ├── book/                    $ order book and manager
+│   │   ├── moldudp64/  # session and gap detection
+│   │   ├── itch/  # ITCH 5.0 parser
+│   │   ├── book/                    # order book and manager
 │   │   └── feed_handler.hpp/.cpp     # glues the above, emits book update events
 │   │
 │   ├── strategy/
@@ -202,7 +208,7 @@ First implement without optimizations and ensure it can sync.
 
 After that, optimize with intrusive lists (for cancel), object pools and others.
 
-4. [ ] Live feed
+4. [x] Live feed
 
 Wrap ITCH in MoldUDP64 packets to send the file over UDP multicast. Then the multicast receiver and sequence tracking.
 Also add packet-drop option to implement gap detection and recovery. 

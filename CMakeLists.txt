@@ -24,7 +24,16 @@ add_library(ttt_net STATIC
 target_link_libraries(ttt_net PUBLIC ttt_core)
 
 add_executable(book_dump apps/book_dump/main.cpp)
+target_include_directories(book_dump PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(book_dump PRIVATE ttt_feed) # ttt_feed brings ttt_core
+
+add_executable(itch_replay apps/itch_replay/main.cpp)
+target_include_directories(itch_replay PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(itch_replay PRIVATE ttt_feed ttt_net)
+
+add_executable(feed_rx apps/feed_rx/main.cpp)
+target_include_directories(feed_rx PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(feed_rx PRIVATE ttt_feed ttt_net)
 
 # --- tests ----------------------------------------------------------------------------
 
