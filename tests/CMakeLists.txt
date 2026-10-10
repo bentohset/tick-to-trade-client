@@ -10,7 +10,7 @@ include(GoogleTest)
 
 add_executable(unit_tests
   unit/book_manager_test.cpp
-  unit/moldudp64_gap_test.cpp
+  unit/moldudp64_test.cpp
   unit/order_book_test.cpp
   unit/order_map_test.cpp
   unit/order_pool_test.cpp
