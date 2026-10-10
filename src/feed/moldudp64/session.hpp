@@ -65,6 +65,7 @@ public:
     if (h->seq > expected_) {
       if (!buf_.put(h->seq, pkt)) {
         // buffer has no more room
+        ++stats_.buffer_full;
         state_ = FeedState::Failed;
         return;
       }
@@ -86,12 +87,17 @@ public:
   FeedState state() const noexcept { return state_; }
   uint64_t expected() const noexcept { return expected_; }
   const Stats& stats() const noexcept { return stats_; }
+  std::size_t peak_buffered() const noexcept { return buf_.peak_used(); }
+  std::size_t buffer_capacity() const noexcept { return buf_.capacity(); }
 
-  // For recovery
+  // For recovery. Always requests up to known_end_, even if part of that range is
+  // already buffered -- the ring no longer tracks the lowest buffered seq cheaply,
+  // so this occasionally asks for a bit more than strictly necessary. Session::put's
+  // dedup (and the receiving Session's own duplicate/overlap handling) absorbs that
+  // for free; it's not worth an O(capacity) scan to avoid a slightly wider request.
   std::optional<Gap> gap() const {
     if (state_ != FeedState::Recovering) return std::nullopt;
-    const uint64_t end = buf_.lowest_seq().value_or(known_end_);
-    return Gap{expected_, end};
+    return Gap{expected_, known_end_};
   }
 
 private:

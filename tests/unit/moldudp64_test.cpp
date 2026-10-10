@@ -190,10 +190,12 @@ TEST(MoldRecovery, ProgressOnPartialRetransmitExtendsDeadline) {
 
   Recovery rec(/*timeout_ns=*/1000, /*max_retries=*/5);
 
-  auto req = rec.poll(s, 0); // first request: [1, 5) — buffered seq 5 bounds the range
+  // first request: [1, 7) -- the ring no longer narrows the end to the buffered seq,
+  // it always asks up to known_end_ (seq 5, count 2 -> known_end_ = 7)
+  auto req = rec.poll(s, 0);
   ASSERT_TRUE(req.has_value());
   EXPECT_EQ(req->first, 1u);
-  EXPECT_EQ(req->end, 5u);
+  EXPECT_EQ(req->end, 7u);
 
   // part of the gap arrives: expected_ advances from 1 to 3
   s.on_packet(test::packet(mold_session(), 1, 2), r);

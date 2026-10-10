@@ -49,8 +49,9 @@ public:
       // new gap or previous request fully answered
       retries_ = 0;
     }
-    // create new gap request
-    const Gap req{gap->first, std::min<uint64_t>(gap->end, 0xFFFF)};
+    // create new gap request, capped to at most kMaxRequestCount messages wide
+    // (the wire request-count field is 16 bits) -- not an absolute end sequence cap
+    const Gap req{gap->first, std::min<uint64_t>(gap->end, gap->first + kMaxRequestCount)};
     active_ = true;
     first_ = req.first;
     end_ = req.end;
