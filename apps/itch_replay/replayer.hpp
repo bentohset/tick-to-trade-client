@@ -11,8 +11,10 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
 #include <random>
 #include <span>
+#include <thread>
 #include <vector>
 
 namespace itch_replay {
@@ -71,6 +73,10 @@ public:
       // continue to answer re-requests
       serve_rerequests();
     }
+
+    std::fprintf(stderr, "sent %zu packets, %llu seqs dropped, %llu re-requests served\n",
+                 index_.size(), static_cast<unsigned long long>(dropped_),
+                 static_cast<unsigned long long>(served_));
   }
 
 private:
@@ -136,7 +142,22 @@ private:
     const auto n = rr_.recv(hdr, &from);
     if (n == 0) return; // nothing arrived
     const auto h = ttt::mold::read_header(hdr);
-    if (!h || h->session != opts_.session || h->seq >= next_seq_) return;
+    if (!h) {
+      std::fprintf(stderr, "rerequest: %zu bytes, too short for a header\n", n);
+      return;
+    }
+    if (h->session != opts_.session) {
+      std::fprintf(stderr, "rerequest: ignored, session mismatch\n");
+      return;
+    }
+    if (h->seq >= next_seq_) {
+      std::fprintf(stderr, "rerequest: ignored, seq %llu not sent yet (next_seq_=%llu)\n",
+                   static_cast<unsigned long long>(h->seq),
+                   static_cast<unsigned long long>(next_seq_));
+      return;
+    }
+    std::fprintf(stderr, "rerequest: seq %llu count %u, answering\n",
+                 static_cast<unsigned long long>(h->seq), h->count);
 
     // find which originally-sent packet covers the requested seqno
     // gets the first indexed packet with first_seq > h->seq
@@ -164,6 +185,19 @@ private:
       next_send_ = std::chrono::steady_clock::now();
     }
     next_send_ += std::chrono::nanoseconds(1'000'000'000 / opts_.rate);
+
+    // Neither this process nor feed_rx is pinned to its own core yet (that's
+    // step 5), so a pure spin here competes with feed_rx for CPU time on
+    // whatever cores the OS hands out -- at a low --rate, the long resulting
+    // run spends a lot of wall-clock time doing that, and every scheduling
+    // gap it causes in the receiver is a potential packet drop. Sleep through
+    // the bulk of the wait so the receiver actually gets the core, and only
+    // spin the last sliver for timing precision.
+    constexpr auto kSpinMargin = std::chrono::microseconds(200);
+    const auto now = std::chrono::steady_clock::now();
+    if (next_send_ - now > kSpinMargin) {
+      std::this_thread::sleep_for(next_send_ - now - kSpinMargin);
+    }
     while (std::chrono::steady_clock::now() < next_send_) {} // spin
   }
 

@@ -47,13 +47,21 @@ book_dump FILE --symbol AAPL --at 04:00:01
 ```
 
 itch_replay + feed_rx (simulate itch moldudp64):
+- run using release build with optimizations because of the following:
+1. `be::load` in `endian.hpp` `memcpy + byteswap` collapses into a single load-and-swap instruction at -O1 and above. Debug mode does not optimize this and runs it through 2 function calls.
+2. Debug keeps everything in memory, not registers
+3. No vectorization and cross-statement reordering.
+4. `inline` is not forced in debug. Resulting in every inline function being a real call.
+- this causes `feed_rx` to not be able to keep up with `itch_replay`, resulting in multiple consecutive re-requests.
 
 ```bash
+# ALWAYS build with release for this test
+./build.sh --release
 # in one terminal (do this first)
-./build/feed_rx --symbol AAPL --depth 5
+./build-release/feed_rx --symbol AAPL --depth 5 --buffer-capacity 65536 --rcvbuf 8388608
 # in second terminal
-./build/itch_replay data/itch/12302019.NASDAQ_ITCH50
-./build/itch_replay data/itch/12302019.NASDAQ_ITCH50 --drop-rate 0.01
+./build-release/itch_replay data/itch/12302019.NASDAQ_ITCH50
+./build-release/itch_replay data/itch/12302019.NASDAQ_ITCH50 --drop-rate 0.01
 ```
 
 ## Benchmark

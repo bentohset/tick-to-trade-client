@@ -67,6 +67,10 @@ int main(int argc, char** argv) {
       const uint64_t now_ns = static_cast<uint64_t>(static_cast<double>(ttt::core::read_ticks()) *
                                                     ttt::core::ns_per_tick());
       if (const auto req = recovery.poll(session, now_ns)) {
+        std::fprintf(stderr, "sending rerequest: [%llu, %llu) to %s:%u\n",
+                     static_cast<unsigned long long>(req->first),
+                     static_cast<unsigned long long>(req->end), opts->rerequest_host,
+                     opts->rerequest_port);
         std::array<std::byte, ttt::mold::kHeaderSize> hdr;
         ttt::mold::write_header(hdr.data(), opts->session, req->first,
                                 static_cast<uint16_t>(req->end - req->first));
@@ -84,6 +88,9 @@ int main(int argc, char** argv) {
   std::printf("%-22s %s\n", "feed state",
               session.state() == ttt::mold::FeedState::Ended ? "Ended" : "Failed");
   std::printf("%-22s %llu\n", "gaps recovered", static_cast<unsigned long long>(st.gaps));
+  std::printf("%-22s %llu\n", "buffer full", static_cast<unsigned long long>(st.buffer_full));
+  std::printf("%-22s %zu / %zu\n", "peak buffered", session.peak_buffered(),
+              session.buffer_capacity());
   std::printf("%-22s %llu\n", "duplicates", static_cast<unsigned long long>(st.duplicates));
   std::printf("%-22s %llu\n", "bad length", static_cast<unsigned long long>(run.bad_length));
 

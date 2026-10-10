@@ -31,6 +31,7 @@ inline void usage(const char* prog) {
       "usage: %s [--group ADDR] [--port N] [--iface ADDR]\n"
       "       [--rerequest-host ADDR] [--rerequest-port N] [--session ID]\n"
       "       [--symbol SYM] [--depth N] [--timeout-ms N] [--max-retries N]\n"
+      "       [--buffer-capacity N] [--rcvbuf BYTES]\n"
       "  --group            multicast group to join (default 239.1.1.1)\n"
       "  --port             multicast port (default 30001)\n"
       "  --iface            local interface address (default 127.0.0.1)\n"
@@ -40,7 +41,10 @@ inline void usage(const char* prog) {
       "  --symbol           print this symbol's book at the end\n"
       "  --depth            levels per side to print (default 10)\n"
       "  --timeout-ms       recovery retry timeout (default 20)\n"
-      "  --max-retries      recovery retries before giving up (default 10)\n",
+      "  --max-retries      recovery retries before giving up (default 10)\n"
+      "  --buffer-capacity  PacketBuffer slots for out-of-order packets during a gap "
+      "(default 4096)\n"
+      "  --rcvbuf           multicast socket receive buffer in bytes (default 1048576)\n",
       prog);
 }
 
@@ -82,6 +86,12 @@ inline std::optional<Options> parse_args(int argc, char** argv) {
     } else if (arg == "--max-retries" && has_value) {
       if (!parse_u64(argv[++i], v)) return std::nullopt;
       o.max_retries = static_cast<uint32_t>(v);
+    } else if (arg == "--buffer-capacity" && has_value) {
+      if (!parse_u64(argv[++i], v)) return std::nullopt;
+      o.buffer_capacity = static_cast<std::size_t>(v);
+    } else if (arg == "--rcvbuf" && has_value) {
+      if (!parse_u64(argv[++i], v)) return std::nullopt;
+      o.rcvbuf_bytes = static_cast<int>(v);
     } else {
       return std::nullopt;
     }
