@@ -57,6 +57,22 @@ inline void print_time_of_day(std::FILE* out, uint64_t ns) {
                static_cast<unsigned long long>(ns % kNsPerSec));
 }
 
+// Duration in the largest unit (min, s, ms, us, ns) it reaches, rounded to the
+// nearest whole unit: 95'400'000'000 -> "2 min", 1'600'000 -> "2 ms"
+inline void print_duration(std::FILE* out, double ns) {
+  struct Unit {
+    double ns;
+    const char* name;
+  };
+  constexpr Unit kUnits[] = {{60e9, "min"}, {1e9, "s"}, {1e6, "ms"}, {1e3, "us"}, {1, "ns"}};
+  for (const auto& u : kUnits) {
+    if (ns >= u.ns || u.ns == 1) {
+      std::fprintf(out, "%.0f %s", ns / u.ns, u.name);
+      return;
+    }
+  }
+}
+
 // ITCH/OUCH Price(4), 4 decimals: 2904500 -> 290.4500
 inline void print_price(std::FILE* out, uint32_t price) {
   std::fprintf(out, "%u.%04u", price / 10'000, price % 10'000);

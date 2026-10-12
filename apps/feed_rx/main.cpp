@@ -1,5 +1,6 @@
 #include "apps/common/book_print.hpp"
 #include "core/clock.hpp"
+#include "core/format.hpp"
 #include "feed/book/book_manager.hpp"
 #include "feed/book/order_book.hpp"
 #include "feed/itch/parser.hpp"
@@ -10,7 +11,9 @@
 #include "feed/moldudp64/wire.hpp"
 #include "net/udp_socket.hpp"
 #include "options.hpp"
+#include <chrono>
 #include <cstdint>
+#include <optional>
 #include <span>
 namespace {
 
@@ -51,10 +54,15 @@ int main(int argc, char** argv) {
     ++applied;
   };
 
+  // Timed from the first packet so idle time before the replay starts isn't counted
+  using Clock = std::chrono::steady_clock;
+  std::optional<Clock::time_point> started;
+
   std::array<std::byte, ttt::mold::kMaxDatagram> buf;
   while (session.state() == ttt::mold::FeedState::Live ||
          session.state() == ttt::mold::FeedState::Recovering) {
     if (const auto n = rx.recv(buf); n > 0) {
+      if (!started) started = Clock::now();
       session.on_packet({buf.data(), n}, sink);
     }
 
@@ -84,6 +92,9 @@ int main(int argc, char** argv) {
     }
   }
 
+  const double elapsed_ns =
+      started ? std::chrono::duration<double, std::nano>(Clock::now() - *started).count() : 0.0;
+
   const auto& st = session.stats();
   std::printf("%-22s %s\n", "feed state",
               session.state() == ttt::mold::FeedState::Ended ? "Ended" : "Failed");
@@ -93,6 +104,11 @@ int main(int argc, char** argv) {
               session.buffer_capacity());
   std::printf("%-22s %llu\n", "duplicates", static_cast<unsigned long long>(st.duplicates));
   std::printf("%-22s %llu\n", "bad length", static_cast<unsigned long long>(run.bad_length));
+  std::printf("%-22s ", "time taken");
+  ttt::core::print_duration(stdout, elapsed_ns);
+  std::printf("\n%-22s ", "time per message");
+  ttt::core::print_duration(stdout, applied ? elapsed_ns / static_cast<double>(applied) : 0.0);
+  std::printf("\n");
 
   const bool ok = apps::print_check(run.books.errors(), run.books.live_orders(), applied,
                                     session.state() == ttt::mold::FeedState::Ended) &&
