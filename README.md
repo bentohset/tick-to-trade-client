@@ -60,9 +60,11 @@ itch_replay + feed_rx (simulate itch moldudp64):
 # in one terminal (do this first)
 ./build-release/feed_rx --symbol AAPL --depth 5 --buffer-capacity 65536 --rcvbuf 8388608
 # in second terminal
-./build-release/itch_replay data/itch/12302019.NASDAQ_ITCH50 --rate 5000
-./build-release/itch_replay data/itch/12302019.NASDAQ_ITCH50 --drop-rate 0.01 --rate 5000
+./build-release/itch_replay data/itch/12302019.NASDAQ_ITCH50 --rate 80000
+./build-release/itch_replay data/itch/12302019.NASDAQ_ITCH50 --drop-rate 0.01 --rate 60000
 ```
+
+- rate of 90000 is the upper limit before hitting buffer_full errors, where the gap can't catch up before the buffer is processed.
 
 ## Benchmark
 
