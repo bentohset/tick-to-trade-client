@@ -8,8 +8,8 @@
 namespace ttt::mold {
 namespace {
 
-using test::Recorder;
 using test::mold_session;
+using test::Recorder;
 
 // --- Session --------------------------------------------------------------------------
 
@@ -98,9 +98,9 @@ TEST(MoldSession, EndOfSessionWhileRecoveringStillEnds) {
   Session s(1, 16);
   Recorder r;
 
-  s.on_packet(test::packet(mold_session(), 1, 1), r);          // delivers 1; expected = 2
-  s.on_packet(test::packet(mold_session(), 5, 1), r);          // gap: Recovering
-  s.on_packet(test::end_of_session(mold_session(), 6), r);     // EOS arrives mid-gap
+  s.on_packet(test::packet(mold_session(), 1, 1), r);      // delivers 1; expected = 2
+  s.on_packet(test::packet(mold_session(), 5, 1), r);      // gap: Recovering
+  s.on_packet(test::end_of_session(mold_session(), 6), r); // EOS arrives mid-gap
 
   EXPECT_EQ(s.state(), FeedState::Recovering); // too early to end: still behind
   EXPECT_TRUE(s.gap().has_value());            // still has an outstanding gap

@@ -14,8 +14,9 @@ struct Options {
   const char* group = apps::defaults::kGroup;
   uint16_t port = apps::defaults::kPort;
   const char* iface = apps::defaults::kIface;
-  const char* rerequest_host = apps::defaults::kIface; // itch_replay's rr_ socket binds to own iface
-      uint16_t rerequest_port = apps::defaults::kRerequestPort;
+  const char* rerequest_host =
+      apps::defaults::kIface; // itch_replay's rr_ socket binds to own iface
+  uint16_t rerequest_port = apps::defaults::kRerequestPort;
   ttt::mold::SessionId session = apps::defaults::kSession;
   int rcvbuf_bytes = 1 << 20;
   std::size_t buffer_capacity = 4096; // PacketBuffer slots
