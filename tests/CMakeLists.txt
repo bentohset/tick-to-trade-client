@@ -15,6 +15,7 @@ add_executable(unit_tests
   unit/order_map_test.cpp
   unit/order_pool_test.cpp
   unit/price_level_test.cpp
+  unit/spsc_queue_test.cpp
 )
 target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}) # "utils/..."
 target_link_libraries(unit_tests PRIVATE ttt_feed GTest::gtest_main)
