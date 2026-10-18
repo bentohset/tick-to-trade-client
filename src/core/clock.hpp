@@ -77,4 +77,8 @@ inline double ns_per_tick() {
   return value;
 }
 
+inline uint64_t ticks_to_ns(uint64_t ticks) {
+  return static_cast<uint64_t>(static_cast<double>(ticks) * ns_per_tick());
+}
+
 } // namespace ttt::core

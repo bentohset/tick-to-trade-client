@@ -9,7 +9,9 @@ FetchContent_MakeAvailable(googletest)
 include(GoogleTest)
 
 add_executable(unit_tests
+  unit/async_logger_test.cpp
   unit/book_manager_test.cpp
+  unit/core_platform_test.cpp
   unit/moldudp64_test.cpp
   unit/order_book_test.cpp
   unit/order_map_test.cpp

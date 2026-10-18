@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_library(ttt_core STATIC
   src/core/mapped_file.cpp
+  src/core/async_logger.cpp
 )
 target_include_directories(ttt_core PUBLIC src)
 target_compile_options(ttt_core PUBLIC -Wall -Wextra -Wpedantic)
