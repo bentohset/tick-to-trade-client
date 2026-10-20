@@ -57,7 +57,9 @@ TEST(LogDecode, FormatSpecsApply) {
   EXPECT_EQ(roundtrip("{:>5}|{:.2f}|{:#x}", 42, 3.14159, 255u), "   42|3.14|0xff");
 }
 
-TEST(LogDecode, Lit) { EXPECT_EQ(roundtrip("reject: {}", Lit{"price band"}), "reject: price band"); }
+TEST(LogDecode, Lit) {
+  EXPECT_EQ(roundtrip("reject: {}", Lit{"price band"}), "reject: price band");
+}
 
 TEST(LogDecode, FixedStr) {
   EXPECT_EQ(roundtrip("sym {}", FixedStr<8>{"AAPL"}), "sym AAPL");

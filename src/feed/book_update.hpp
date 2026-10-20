@@ -10,7 +10,7 @@ namespace ttt::feed {
 
 // network operations that all feed handlers need
 template <class T>
-concept FeedIo = requires (T io, std::span<std::byte> buf, std::span<const std::byte> req) {
+concept FeedIo = requires(T io, std::span<std::byte> buf, std::span<const std::byte> req) {
   { io.recv_feed(buf) } -> std::same_as<std::size_t>;
   { io.recv_rerequest(buf) } -> std::same_as<std::size_t>;
   io.send_rerequest(req);
@@ -25,4 +25,4 @@ struct UdpFeedIo {
   void send_rerequest(std::span<const std::byte> req) { rr.send_to(req, rerequest_to); }
 };
 
-}
+} // namespace ttt::feed

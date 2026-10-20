@@ -46,16 +46,18 @@ struct FeedStats {
   uint64_t last_rx_tsc = 0;
 };
 
-// Sink is where updates on subscriptions go (the consumer) 
+// Sink is where updates on subscriptions go (the consumer)
 // and Io is where packets arrive from
-template <BookUpdateSink Sink, FeedIo Io = UdpFeedIo>
-class FeedHandler {
+template <BookUpdateSink Sink, FeedIo Io = UdpFeedIo> class FeedHandler {
 public:
   FeedHandler(const FeedConfig& cfg, Io& io, Sink& sink, core::LogChannel& logger)
-    : cfg_(cfg), io_(io), sink_(sink), logger_(logger),
-      session_(cfg.start_seq, cfg.buffer_capacity),
-      recovery_(cfg.recovery_timeout_ns, cfg.max_retries),
-      sub_slot_(65536, kNoSub) {}
+      : cfg_(cfg),
+        io_(io),
+        sink_(sink),
+        logger_(logger),
+        session_(cfg.start_seq, cfg.buffer_capacity),
+        recovery_(cfg.recovery_timeout_ns, cfg.max_retries),
+        sub_slot_(65536, kNoSub) {}
 
   // Denote which symbols should produce BookUpdates to the consumer
   void subscribe(std::string_view symbol) {
@@ -126,8 +128,10 @@ public:
         send_rerequest(*req);
       }
     }
-    // considered stale only once the feed has started; not considered before the first packet as we just wait
-    if (stats_.last_rx_tsc && !stale_ && core::ticks_to_ns(now_tsc - stats_.last_rx_tsc) > cfg_.stale_after_ns) {
+    // considered stale only once the feed has started; not considered before the first packet as we
+    // just wait
+    if (stats_.last_rx_tsc && !stale_ &&
+        core::ticks_to_ns(now_tsc - stats_.last_rx_tsc) > cfg_.stale_after_ns) {
       stale_ = true;
     }
     log_transition(before, health());
@@ -136,10 +140,10 @@ public:
   FeedHealth health() const {
     if (recovery_.timed_out()) return FeedHealth::Failed;
     switch (session_.state()) {
-    case mold::FeedState::Failed: return FeedHealth::Failed;
-    case mold::FeedState::Ended: return FeedHealth::Ended;
-    case mold::FeedState::Recovering: return FeedHealth::Recovering;
-    case mold::FeedState::Live: return stale_ ? FeedHealth::Stale : FeedHealth::Live;
+      case mold::FeedState::Failed: return FeedHealth::Failed;
+      case mold::FeedState::Ended: return FeedHealth::Ended;
+      case mold::FeedState::Recovering: return FeedHealth::Recovering;
+      case mold::FeedState::Live: return stale_ ? FeedHealth::Stale : FeedHealth::Live;
     }
     return FeedHealth::Failed;
   }
@@ -223,7 +227,8 @@ private:
   // encode and send a re-request
   void send_rerequest(const mold::Gap& req) {
     std::array<std::byte, mold::kHeaderSize> hdr;
-    mold::write_header(hdr.data(), cfg_.session, req.first, static_cast<uint16_t>(req.end - req.first));
+    mold::write_header(hdr.data(), cfg_.session, req.first,
+                       static_cast<uint16_t>(req.end - req.first));
     io_.send_rerequest(hdr);
     ++stats_.rerequests;
     logger_.log(core::LogLevel::Warn, "rerequest [{}, {})", req.first, req.end);
@@ -235,14 +240,18 @@ private:
     if (from == to) return;
     const uint64_t seq = session_.expected();
     switch (to) {
-    case H::Recovering: logger_.log(L::Warn, "gap: waiting for seq {}", seq); break;
-    case H::Stale: logger_.log(L::Warn, "stale: no packets for {} ms", cfg_.stale_after_ns / 1'000'000); break;
-    case H::Live: logger_.log(L::Info, "live at seq {}", seq); break;
-    case H::Ended: logger_.log(L::Info, "end of session at seq {}", seq); break;
-    case H::Failed:
-      if (recovery_.timed_out()) logger_.log(L::Error, "recovery timed out at seq {}", seq);
-      else logger_.log(L::Error, "packet buffer full at seq {}", seq);
-      break;
+      case H::Recovering: logger_.log(L::Warn, "gap: waiting for seq {}", seq); break;
+      case H::Stale:
+        logger_.log(L::Warn, "stale: no packets for {} ms", cfg_.stale_after_ns / 1'000'000);
+        break;
+      case H::Live: logger_.log(L::Info, "live at seq {}", seq); break;
+      case H::Ended: logger_.log(L::Info, "end of session at seq {}", seq); break;
+      case H::Failed:
+        if (recovery_.timed_out())
+          logger_.log(L::Error, "recovery timed out at seq {}", seq);
+        else
+          logger_.log(L::Error, "packet buffer full at seq {}", seq);
+        break;
     }
   }
 
@@ -269,4 +278,4 @@ private:
   std::array<std::byte, mold::kMaxDatagram> buf_;
 };
 
-}
+} // namespace ttt::feed
