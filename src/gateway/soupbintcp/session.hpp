@@ -79,8 +79,9 @@ public:
     if (!tx_.flush(*sock_)) return drop(h, "send failed");
   }
 
-  // encodes the app message into the send buffer and flushes
-  // returns false if not logged in
+  // encodes the app message into the send buffer and flushes.
+  // returns false if not logged in.
+  // only the client can send U unsequenced data.
   template <class Enc> bool send_unsequenced(std::size_t len, Enc&& enc) {
     if (state_ != SoupState::LoggedIn) return false;
     if (!put(kUnsequenced, len, enc)) return false;
