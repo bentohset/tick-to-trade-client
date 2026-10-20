@@ -21,6 +21,7 @@ target_link_libraries(ttt_feed PUBLIC ttt_core)
 
 add_library(ttt_net STATIC
   src/net/udp_socket.cpp
+  src/net/tcp_client.cpp
 )
 target_link_libraries(ttt_net PUBLIC ttt_core)
 
