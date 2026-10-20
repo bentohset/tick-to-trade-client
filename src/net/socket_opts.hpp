@@ -1,16 +1,10 @@
 #pragma once
 
-#include "net/helpers.hpp"
-
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 
 namespace ttt::net {
-
-inline void set_nonblocking(int fd) {
-  if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) fail("fcntl");
-}
 
 inline void set_nodelay(int fd) {
   const int one = 1;

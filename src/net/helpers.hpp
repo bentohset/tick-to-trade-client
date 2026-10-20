@@ -1,7 +1,7 @@
 #pragma once
 
 #include "net/fd.hpp"
-#include "net/socket_opts.hpp"
+
 #include <system_error>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -13,6 +13,10 @@ namespace ttt::net {
 
 [[noreturn]] inline void fail(const char* what) {
   throw std::system_error(errno, std::generic_category(), what);
+}
+
+inline void set_nonblocking(int fd) {
+  if (fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK) < 0) fail("fcntl");
 }
 
 inline Fd make_socket(int type, bool nonblocking) {
