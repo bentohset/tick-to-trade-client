@@ -25,6 +25,12 @@ add_library(ttt_net STATIC
 )
 target_link_libraries(ttt_net PUBLIC ttt_core)
 
+add_library(ttt_gateway STATIC
+  src/gateway/common/order_state.cpp
+  src/gateway/soupbintcp/session.cpp
+)
+target_link_libraries(ttt_gateway PUBLIC ttt_net ttt_feed)
+
 add_executable(book_dump apps/book_dump/main.cpp)
 target_include_directories(book_dump PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(book_dump PRIVATE ttt_feed) # ttt_feed brings ttt_core
