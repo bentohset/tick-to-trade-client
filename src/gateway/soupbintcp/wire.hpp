@@ -63,7 +63,7 @@ inline void encode_login(std::byte* p, const Username& u, const Password& pw, co
   write_num(p + 26, 20, seq);
 }
 
-inline void encode_login_acdcepted(std::byte* p, const SessionId& s, uint64_t seq) noexcept {
+inline void encode_login_accepted(std::byte* p, const SessionId& s, uint64_t seq) noexcept {
   std::memcpy(p, s.data(), 10);
   write_num(p + 10, 20, seq);
 }
