@@ -12,4 +12,6 @@ inline constexpr const char* kIface = "127.0.0.1";
 inline constexpr uint16_t kRerequestPort = 30002;
 inline constexpr ttt::mold::SessionId kSession{'T', 'T', 'T', '0', '0', '0', '0', '0', '0', '1'};
 
+inline constexpr uint16_t kGatewayPort = 40001;
+
 } // namespace apps::defaults

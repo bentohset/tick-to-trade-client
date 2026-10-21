@@ -43,6 +43,13 @@ add_executable(feed_rx apps/feed_rx/main.cpp)
 target_include_directories(feed_rx PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(feed_rx PRIVATE ttt_feed ttt_net)
 
+add_executable(mock_exchange
+  apps/mock_exchange/main.cpp
+  apps/mock_exchange/exchange.cpp
+)
+target_include_directories(mock_exchange PRIVATE ${CMAKE_SOURCE_DIR})
+target_link_libraries(mock_exchange PRIVATE ttt_gateway) # brings ttt_net, ttt_feed, ttt_core
+
 # --- tests ----------------------------------------------------------------------------
 
 # Defines BUILD_TESTING (ON by default) and calls enable_testing(), so ctest run
