@@ -31,24 +31,10 @@ add_library(ttt_gateway STATIC
 )
 target_link_libraries(ttt_gateway PUBLIC ttt_net ttt_feed)
 
-add_executable(book_dump apps/book_dump/main.cpp)
-target_include_directories(book_dump PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(book_dump PRIVATE ttt_feed) # ttt_feed brings ttt_core
+# --- apps -----------------------------------------------------------------------------
 
-add_executable(itch_replay apps/itch_replay/main.cpp)
-target_include_directories(itch_replay PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(itch_replay PRIVATE ttt_feed ttt_net)
-
-add_executable(feed_rx apps/feed_rx/main.cpp)
-target_include_directories(feed_rx PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(feed_rx PRIVATE ttt_feed ttt_net)
-
-add_executable(mock_exchange
-  apps/mock_exchange/main.cpp
-  apps/mock_exchange/exchange.cpp
-)
-target_include_directories(mock_exchange PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(mock_exchange PRIVATE ttt_gateway) # brings ttt_net, ttt_feed, ttt_core
+# After the libraries: the apps link against them
+add_subdirectory(apps)
 
 # --- tests ----------------------------------------------------------------------------
 
