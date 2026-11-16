@@ -16,9 +16,24 @@ add_executable(unit_tests
   unit/order_book_test.cpp
   unit/order_map_test.cpp
   unit/order_pool_test.cpp
+  unit/order_state_test.cpp
+  unit/ouch_codec_test.cpp
   unit/price_level_test.cpp
+  unit/soupbintcp_test.cpp
   unit/spsc_queue_test.cpp
 )
-target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}) # "utils/..."
-target_link_libraries(unit_tests PRIVATE ttt_feed GTest::gtest_main)
-gtest_discover_tests(unit_tests)
+target_include_directories(unit_tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR} # "utils/..."
+  ${PROJECT_SOURCE_DIR}       # "apps/mock_exchange/ouch_encode.hpp"
+)
+target_link_libraries(unit_tests PRIVATE ttt_gateway GTest::gtest_main) # brings ttt_feed
+gtest_discover_tests(unit_tests PROPERTIES LABELS unit)
+
+# Real loopback TCP against an in-process mock exchange
+add_executable(integration_tests
+  integration/gateway_session_test.cpp
+  ${PROJECT_SOURCE_DIR}/apps/mock_exchange/exchange.cpp
+)
+target_include_directories(integration_tests PRIVATE ${PROJECT_SOURCE_DIR})
+target_link_libraries(integration_tests PRIVATE ttt_gateway GTest::gtest_main)
+gtest_discover_tests(integration_tests PROPERTIES LABELS integration)
