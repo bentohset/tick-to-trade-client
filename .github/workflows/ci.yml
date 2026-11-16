@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Build everything (libraries, apps, tests, benchmarks) and run the unit tests
-  # on x86-64 Linux with both compilers, in Debug and Release.
+  # Build everything (libraries, apps, tests, benchmarks) and run the unit and
+  # integration tests on x86-64 Linux with both compilers, in Debug and Release.
   build-test:
     name: ${{ matrix.compiler }} ${{ matrix.build_type }}
     runs-on: ubuntu-24.04
@@ -31,6 +31,7 @@ jobs:
     env:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
+      BUILD_DIR: ${{ matrix.build_type == 'Release' && 'build-release' || 'build' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -45,10 +46,16 @@ jobs:
           ninja --version
 
       - name: Build
+        id: build
         run: ./build.sh --test --bench ${{ matrix.build_type == 'Release' && '--release' || '' }}
 
-      - name: Test
-        run: ctest --test-dir ${{ matrix.build_type == 'Release' && 'build-release' || 'build' }} --output-on-failure
+      - name: Unit tests
+        run: ctest --test-dir "$BUILD_DIR" -L unit --output-on-failure
+
+      # runs even if unit tests failed, as long as the build succeeded
+      - name: Integration tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: ctest --test-dir "$BUILD_DIR" -L integration --output-on-failure
 
   # AddressSanitizer + UndefinedBehaviorSanitizer: memory errors, leaks, UB.
   sanitizers:
@@ -74,10 +81,18 @@ jobs:
           "-DCMAKE_EXE_LINKER_FLAGS=$SAN_FLAGS"
 
       - name: Build
+        id: build
         run: cmake --build build-san --parallel
 
-      - name: Test
+      - name: Unit tests
         env:
           ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
           UBSAN_OPTIONS: print_stacktrace=1
-        run: ctest --test-dir build-san --output-on-failure
+        run: ctest --test-dir build-san -L unit --output-on-failure
+
+      - name: Integration tests
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        env:
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1
+        run: ctest --test-dir build-san -L integration --output-on-failure
