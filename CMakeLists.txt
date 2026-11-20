@@ -31,6 +31,11 @@ add_library(ttt_gateway STATIC
 )
 target_link_libraries(ttt_gateway PUBLIC ttt_net ttt_feed)
 
+add_library(ttt_risk STATIC
+  src/risk/position_keeper.cpp
+)
+target_link_libraries(ttt_risk PUBLIC ttt_gateway)
+
 # --- apps -----------------------------------------------------------------------------
 
 # After the libraries: the apps link against them
