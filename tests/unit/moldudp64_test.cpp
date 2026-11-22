@@ -40,6 +40,23 @@ TEST(MoldSession, GapBuffersThenDrainsInOrder) {
   EXPECT_EQ(s.state(), FeedState::Live);
 }
 
+TEST(MoldSession, BufferedPacketsKeepTheirOwnArrivalTime) {
+  Session s(1, 16);
+  std::vector<std::pair<uint64_t, uint64_t>> got; // (seq, rx_tsc seen in the sink)
+  const auto sink = [&](uint64_t seq, std::span<const std::byte>) {
+    got.emplace_back(seq, s.delivering_rx_tsc());
+  };
+
+  s.on_packet(test::packet(mold_session(), 1, 1), sink, 100);
+  s.on_packet(test::packet(mold_session(), 3, 1), sink, 200); // gap: buffered
+  s.on_packet(test::packet(mold_session(), 4, 1), sink, 300); // buffered
+  s.on_packet(test::packet(mold_session(), 2, 1), sink, 900); // fill: releases 3 and 4
+
+  // 3 and 4 report when they arrived (200, 300), not when the fill arrived (900)
+  EXPECT_EQ(got, (std::vector<std::pair<uint64_t, uint64_t>>{
+                     {1, 100}, {2, 900}, {3, 200}, {4, 300}}));
+}
+
 TEST(MoldSession, PartialOverlapSkipsPrefix) {
   Session s(1, 16);
   Recorder r;

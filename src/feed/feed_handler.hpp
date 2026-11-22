@@ -97,25 +97,26 @@ public:
     ++stats_.packets;
     if (!stats_.first_rx_tsc) stats_.first_rx_tsc = rx_tsc;
     stats_.last_rx_tsc = rx_tsc;
-    // store arrival time in member because callback needs it to stamp BookUpdates
-    // TODO: flaw in latency measurement
-    // packets released from PacketBuffer after a gap get this rx_tsc, not their own
-    // so latency for a given packet may consist of re-requested packets
-    // fix: each packet needs to keep its own arrival time
-    rx_tsc_ = rx_tsc;
 
     // take snapshot of health before processing
     const auto before = health();
     stale_ = false;
 
     // hands packet to Session
-    session_.on_packet(pkt, [this](uint64_t seq, std::span<const std::byte> msg) {
-      seq_ = seq; // store seq for BookUpdate
-      ++stats_.messages;
-      // parse the ITCH message and forwards to on_message
-      Dispatch d{*this};
-      if (itch::parse(msg, d) == itch::ParseResult::BadLength) ++stats_.bad_length;
-    });
+    session_.on_packet(
+        pkt,
+        [this](uint64_t seq, std::span<const std::byte> msg) {
+          seq_ = seq; // store seq for BookUpdate
+          // arrival time of the packet this message came from. For packets held in
+          // PacketBuffer during a gap, that's their own arrival, so latency includes
+          // the time spent waiting for the gap to fill
+          rx_tsc_ = session_.delivering_rx_tsc();
+          ++stats_.messages;
+          // parse the ITCH message and forwards to on_message
+          Dispatch d{{}, *this}; // {} initialises the NullHandler base
+          if (itch::parse(msg, d) == itch::ParseResult::BadLength) ++stats_.bad_length;
+        },
+        rx_tsc);
     log_transition(before, health());
   }
 
@@ -173,7 +174,9 @@ private:
     Top last;
   };
 
-  struct Dispatch {
+  // Derives from NullHandler for on_other(), which parse() calls for message types
+  // with no typed struct. The template on() catches every typed message.
+  struct Dispatch : itch::NullHandler {
     FeedHandler& self;
     template <class Msg> void on(const Msg& msg) { self.on_message(msg); }
   };

@@ -22,7 +22,11 @@ public:
 
   // Dispatcher and handles state of packets
   // Sink template: void(uint64_t seq, std::span<const std::byte>msg)
-  template <class Sink> void on_packet(std::span<const std::byte> pkt, Sink&& sink) {
+  // rx_tsc: when pkt arrived. Inside the sink, delivering_rx_tsc() gives the arrival time
+  // of the packet the current message came from -- for messages released from the
+  // buffer after a gap, that's their own arrival, not this packet's.
+  template <class Sink>
+  void on_packet(std::span<const std::byte> pkt, Sink&& sink, uint64_t rx_tsc = 0) {
     // decode header
     const auto h = read_header(pkt);
     if (!h) return; // header parse fail
@@ -63,7 +67,7 @@ public:
     }
     // gap detected, hand it to packetbuffer to hold
     if (h->seq > expected_) {
-      if (!buf_.put(h->seq, pkt)) {
+      if (!buf_.put(h->seq, pkt, rx_tsc)) {
         // buffer has no more room
         ++stats_.buffer_full;
         state_ = FeedState::Failed;
@@ -74,9 +78,12 @@ public:
     }
 
     // this packet overlaps with expected (either starts at expected_ or slightly before)
+    delivering_rx_tsc_ = rx_tsc;
     apply(h->seq, h->count, pkt.subspan(kHeaderSize), sink);
     // after advancing expected_, check if any buffered gap can be unblocked
-    buf_.pop_ready(expected_, [&](uint64_t, std::span<const std::byte> buffered) {
+    buf_.pop_ready(expected_, [&](uint64_t, std::span<const std::byte> buffered,
+                                  uint64_t buffered_rx_tsc) {
+      delivering_rx_tsc_ = buffered_rx_tsc;
       const auto bh = read_header(buffered);
       // mutates expected_
       apply(bh->seq, bh->count, buffered.subspan(kHeaderSize), sink);
@@ -85,6 +92,8 @@ public:
   }
 
   FeedState state() const noexcept { return state_; }
+  // Arrival time of the packet the message being delivered came from. Valid inside the sink.
+  uint64_t delivering_rx_tsc() const noexcept { return delivering_rx_tsc_; }
   uint64_t expected() const noexcept { return expected_; }
   const Stats& stats() const noexcept { return stats_; }
   std::size_t peak_buffered() const noexcept { return buf_.peak_used(); }
@@ -146,6 +155,7 @@ private:
   // set during End-of-Session packet received
   std::optional<uint64_t> end_seq_;
   FeedState state_ = FeedState::Live;
+  uint64_t delivering_rx_tsc_ = 0;
   Stats stats_;
   // buffer for packets that arrive ahead of expected_
   PacketBuffer buf_;

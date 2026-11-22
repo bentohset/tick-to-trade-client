@@ -28,14 +28,15 @@ class PacketBuffer {
 public:
   explicit PacketBuffer(std::size_t capacity) : slots_(capacity) {}
 
-  // Store a packet. False means no room: either truly full, or a collision with a
-  // different seq at the same slot (the gap is wider than capacity).
-  bool put(uint64_t seq, std::span<const std::byte> pkt) {
+  // Store a packet with its arrival time. False means no room: either truly full, or
+  // a collision with a different seq at the same slot (the gap is wider than capacity).
+  bool put(uint64_t seq, std::span<const std::byte> pkt, uint64_t rx_tsc = 0) {
     Slot& s = slots_[seq % slots_.size()];
     if (s.used && s.seq == seq) return true; // already buffered: dedup
     if (s.used) return false;                // occupied by a different seq: no room
     s.used = true;
     s.seq = seq;
+    s.rx_tsc = rx_tsc;
     s.data.assign(pkt.begin(), pkt.end());
     ++used_;
     if (used_ > peak_used_) peak_used_ = used_;
@@ -51,7 +52,7 @@ public:
     for (;;) {
       Slot& s = slots_[upto % slots_.size()];
       if (!s.used || s.seq != upto) return;
-      f(s.seq, std::span<const std::byte>(s.data));
+      f(s.seq, std::span<const std::byte>(s.data), s.rx_tsc);
       s.used = false;
       --used_;
       // upto has already advanced (f's side effect), loop checks the new value
@@ -67,6 +68,7 @@ private:
   struct Slot {
     bool used = false;
     uint64_t seq = 0;
+    uint64_t rx_tsc = 0; // when the packet arrived, so latency still counts from arrival
     // copy of raw bytes (rx buffer will get reused for next read)
     std::vector<std::byte> data;
   };

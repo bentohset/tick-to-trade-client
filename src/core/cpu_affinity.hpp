@@ -1,5 +1,10 @@
 #pragma once
 
+#if defined(__linux__)
+#include <pthread.h> // pthread_setaffinity_np, pthread_setname_np
+#include <sched.h>   // cpu_set_t, CPU_ZERO, CPU_SET
+#endif
+
 namespace ttt::core {
 
 /**

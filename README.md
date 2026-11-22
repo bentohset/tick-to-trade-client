@@ -66,6 +66,20 @@ itch_replay + feed_rx (simulate itch moldudp64):
 
 - rate of 90000 is the upper limit before hitting buffer_full errors, where the gap can't catch up before the buffer is processed.
 
+feed_rx threading modes (`--symbol` subscribes to a symbol; its top-of-book updates are timed from packet arrival to the consumer):
+
+```bash
+# single (default): one thread receives, builds books and consumes updates
+./build-release/feed_rx --symbol AAPL --log-file feed.log
+# pipeline: feed thread -> SPSC queue -> consumer thread, each pinned (pinning is Linux only)
+./build-release/feed_rx --symbol AAPL --mode pipeline --cpu-feed 2 --cpu-consumer 3 \
+                        --queue-capacity 4096 --log-file feed.log
+```
+
+- Compare the `rx -> consumer` line between the two modes. Quote numbers from an x86 Linux host only: on Apple Silicon the clock steps every ~41 ns and pinning does nothing.
+- Updates from packets held during a gap are timed from their own arrival, so the tail includes the wait for the re-request.
+- `--log-level`, `--log-file` and `--stale-ms` control the feed log (gaps, re-requests, stale feed). Ctrl-C stops cleanly and still prints results.
+
 ## Benchmark
 
 Build with `--bench` flag
@@ -223,7 +237,7 @@ After that, optimize with intrusive lists (for cancel), object pools and others.
 Wrap ITCH in MoldUDP64 packets to send the file over UDP multicast. Then the multicast receiver and sequence tracking.
 Also add packet-drop option to implement gap detection and recovery. 
 
-5. [ ] Core infra
+5. [x] Core infra
 
 Build SPSC queue for multithreading, async logger, rdtsc clock and CPU pinning.
 
