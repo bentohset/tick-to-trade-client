@@ -1,23 +1,28 @@
 #pragma once
 
-#include "feed/book/types.hpp"
+#include "net/udp_socket.hpp"
 
-#include <cstdint>
+#include <concepts>
+#include <cstddef>
+#include <span>
 
 namespace ttt::feed {
 
-// Message from FeedHandler to upstream consumer denoting
-// "this symbol's best bid and best ask are now these".
-struct BookUpdate {
-  uint64_t rx_tsc; // when the packet arrived
-  uint64_t seq;    // MoldUDP64 sequence of the message that caused it
-  uint64_t bid_qty, ask_qty;
-  book::Price bid_px, ask_px;
-  uint16_t locate; // which symbol
+// network operations that all feed handlers need
+template <class T>
+concept FeedIo = requires(T io, std::span<std::byte> buf, std::span<const std::byte> req) {
+  { io.recv_feed(buf) } -> std::same_as<std::size_t>;
+  { io.recv_rerequest(buf) } -> std::same_as<std::size_t>;
+  io.send_rerequest(req);
 };
 
-// rule for anything that can receive book updates
-template <class S>
-concept BookUpdateSink = requires(S s, const BookUpdate& u) { s.on_update(u); };
+struct UdpFeedIo {
+  net::UdpSocket rx, rr;
+  net::Endpoint rerequest_to;
+
+  std::size_t recv_feed(std::span<std::byte> b) { return rx.recv(b); }
+  std::size_t recv_rerequest(std::span<std::byte> b) { return rr.recv(b); }
+  void send_rerequest(std::span<const std::byte> req) { rr.send_to(req, rerequest_to); }
+};
 
 } // namespace ttt::feed
