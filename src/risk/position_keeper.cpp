@@ -1,11 +1,13 @@
-
-
 #include "risk/position_keeper.hpp"
+
 #include "feed/itch/messages.hpp"
+
+#include <cinttypes> // PRId64
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <optional>
+
 namespace ttt::risk {
 
 std::optional<uint16_t> PositionKeeper::add_symbol(itch::Symbol s) {
